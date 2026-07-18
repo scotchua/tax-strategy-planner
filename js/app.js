@@ -832,6 +832,27 @@
         }).join('') + '</tbody></table>';
     }
 
+    // Tie-out: sum the parsed income fields and compare against the
+    // return's own line 9 (total income) — the one arithmetic check that
+    // would catch most mis-mapped or dropped values automatically.
+    if (ref.totalIncome !== null && ref.totalIncome !== undefined) {
+      var parsedTotal = (f.wages || 0) + (f.interest || 0) + (f.qualDiv || 0) +
+        (f.scheduleCNet || 0) + (f.rentalNet || 0) + (f.passthroughK1 || 0) +
+        (f.ltcg || 0) + (f.otherIncome || 0);
+      var diff = parsedTotal - ref.totalIncome;
+      var tieTolerance = 2;
+      html += '<div style="margin-bottom:16px;padding:10px 14px;border-radius:8px;' +
+        (Math.abs(diff) > tieTolerance ? 'background:color-mix(in srgb, var(--red) 10%, transparent);color:var(--red);'
+          : 'background:var(--green-soft);color:var(--green);') +
+        'font-size:13px;font-weight:600">' +
+        'Parsed income total: ' + usd(parsedTotal) + ' vs. return line 9: ' + usd(ref.totalIncome) +
+        ' — difference ' + usd(diff) +
+        (Math.abs(diff) > tieTolerance
+          ? ' (does not tie — some income (adjustments, un-mapped Schedule 1 lines) may not be captured; review before applying)'
+          : ' (ties out)') +
+        '</div>';
+    }
+
     if (result.warnings.length) {
       html += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.8px;color:var(--accent);margin-bottom:8px">Review notes</h3>' +
         '<ul class="notes" style="margin-bottom:18px">' +
@@ -877,10 +898,20 @@
 
   function importReturnPdf(file) {
     var reader = new FileReader();
+    reader.onerror = function () {
+      alert('Could not read that file from disk — try again, or a different file.');
+    };
     reader.onload = function () {
       TSIQ.parseReturnPdf(new Uint8Array(reader.result))
         .then(function (result) { renderPdfReview(result, file.name); })
-        .catch(function (e) { alert('Could not read that PDF: ' + e.message); });
+        .catch(function (e) {
+          if (e && e.name === 'PasswordException') {
+            alert('This PDF is password-protected. Remove the password (e.g. "Print to PDF" ' +
+              'from a viewer that already has it unlocked) and try importing again.');
+          } else {
+            alert('Could not read that PDF: ' + e.message);
+          }
+        });
     };
     reader.readAsArrayBuffer(file);
   }
