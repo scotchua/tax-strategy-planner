@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/30095645/README.md)
 # Tax Strategy Planner
 
 A tax planning tool: input client return data, apply strategies from the library,
@@ -23,7 +22,7 @@ Click **Brand Settings** in the header to set the firm name, brand color, and
 logo. The branding flows through the whole app plus every client output
 (PDF report, per-strategy handouts, slideshow, pitch deck) and is saved on
 that computer. To give the tool to another firm, copy the whole
-`tax-strategy-tool` folder — they open `index.html`, set their brand once,
+`tax-strategy-planner` folder — they open `index.html`, set their brand once,
 and everything is theirs.
 
 ## Importing a prior-year return
@@ -34,9 +33,20 @@ Two ways to get a return into the app:
   your browser (nothing leaves your computer, no AI involved). Parsed figures
   appear in a review screen with the return's own AGI/taxable-income/total-tax
   lines for tie-out; nothing fills in until you click Apply. Scanned returns
-  aren't supported (no text layer) — use the Claude workflow for those.
+  aren't supported (no text layer) — use the Claude workflow below for those.
 - **Import Client File** — loads a `.tsiq.json` produced by the Claude review
   workflow (which also suggests strategies with reasons) or by Export.
+
+### The Claude review workflow
+
+For a scanned return (or any case where you'd rather have Claude read the
+return and pre-fill the client file): open a Claude session, attach the
+return PDF, and ask it to produce a `.tsiq.json` file per
+`docs/client-file-format.md` — that doc is both the schema Claude follows
+and the full spec of what "the Claude workflow" means (never-invent-numbers
+rule, the `suggestedStrategies` shortlist format, confidentiality rules for
+what NOT to put in the file). Save Claude's output next to this app and
+load it with **Import Client File**.
 
 ## How to use it
 
@@ -95,5 +105,10 @@ Just open a session in this folder and ask for what you want, e.g.:
 ## Scope notes (v1)
 
 Federal 2026 law per Rev. Proc. 2025-32 / OBBBA. State tax uses a flat effective
-rate. Not yet modeled: AMT, depreciation recapture on sale, §461(l). See
-`CLAUDE.md` for the full list.
+rate. Not yet modeled: AMT, depreciation recapture on sale, §461(l) excess
+business loss disallowance (though the app flags the dollar exposure for the
+last two when they apply), rental income in the §199A QBI calculation, QBI's
+25%-wage/2.5%-UBIA alternative limitation, and inflation-indexing of
+brackets/thresholds in projection years 2+ (every year is computed at 2026
+law AND 2026 dollar thresholds). See `CLAUDE.md` for the full list and why
+each is out of scope.

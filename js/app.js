@@ -670,7 +670,8 @@
       'Projection years apply 2026 law AND 2026 dollar thresholds/brackets to every year shown ' +
       '(not inflation-indexed) — later-year figures are illustrative, not indexed projections. ' +
       'State tax modeled at a flat effective rate. Rental income does not enter the §199A QBI ' +
-      'calculation. AMT and depreciation recapture on sale are not modeled — see the README Scope ' +
+      'calculation, and QBI\'s 25%-wage/2.5%-UBIA alternative limitation is not modeled (only the ' +
+      '50%-of-wages prong). AMT and depreciation recapture on sale are not modeled — see the README Scope ' +
       'Notes. §461(l) excess business loss is not modeled either, but is flagged above (Planning ' +
       'Notes) with the dollar amount whenever a scenario\'s aggregate business loss actually ' +
       'crosses the threshold.</p>';

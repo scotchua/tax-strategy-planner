@@ -175,7 +175,11 @@ TSIQ.TABLES_2026 = {
       groupTermLifeExclusion: 50000      // §79
     },
     // Rev. Proc. 2025-32 / OBBBA §70301
-    sec179: { max: 2560000, phaseOutStart: 4090000 },
+    // suvCap: §179(b)(5)(A) heavy-SUV-specific cap (GVWR 6,001-14,000 lbs),
+    // separate from and lower than the main §179 dollar limit above; does NOT
+    // apply to §168(k) bonus depreciation. Inflation trend: $28,900 (2023),
+    // $30,500 (2024), $31,300 (2025), $32,000 (2026 — Rev. Proc. 2025-32).
+    sec179: { max: 2560000, phaseOutStart: 4090000, suvCap: 32000 },
     mileageRateBusiness: 0.725,          // 2026 standard business mileage rate
     kiddieTaxUnearnedThreshold: 2700,    // above this, taxed at parents' rate
     gift: { annualExclusion: 19000, estateExemption: 15000000 }, // OBBBA permanent
