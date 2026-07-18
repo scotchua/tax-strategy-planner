@@ -251,7 +251,21 @@ TSIQ.TABLES_2026 = {
       grossAssetCap: 75000000,
       perIssuerCap: 15000000,
       exclusionTiers: { yr3: 0.50, yr4: 0.75, yr5plus: 1.00 }
-    }
+    },
+    // §408(d)(8): qualified charitable distribution annual limit, 2026 per
+    // Rev. Proc. 2025-32 (up from $108,000 in 2025); splitInterestLimit is
+    // the one-time §408(d)(8)(F) (SECURE 2.0 §307) election to a CGA/CRAT/
+    // CRUT, indexed separately from Notice 2023-75's $50,000 (2023) base.
+    qcd: { annualLimit: 111000, splitInterestLimit: 55000 },
+    // 529 education savings: k12Cap is OBBBA §70414 (amending §529(e)(3)(A)),
+    // doubled from $10,000 for distributions in tax years beginning after
+    // 12/31/2025 (the expanded K-12 expense categories and postsecondary
+    // credentialing expenses under §529(c)(8) took effect at enactment,
+    // 7/4/2025). rothRolloverLifetimeCap is SECURE 2.0 §126's lifetime cap
+    // on 529-to-Roth-IRA rollovers per beneficiary (subject to the
+    // beneficiary's own annual Roth contribution limit and other
+    // conditions — 15-year account age, 5-year seasoning — not modeled here).
+    edu529: { k12Cap: 20000, rothRolloverLifetimeCap: 35000 }
   }
 };
 

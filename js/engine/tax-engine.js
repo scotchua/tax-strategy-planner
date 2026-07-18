@@ -211,6 +211,11 @@ window.TSIQ = window.TSIQ || {};
                          // STATE still taxes (e.g. QSBS §1202 gain in CA/PA/
                          // AL/MS) — same "federal deduction, state add-back"
                          // pattern as ptetDeducted, just not PTET-specific.
+      stateOnlyDeduction: 0, // LB5: the mirror image of stateIncomeAddBack —
+                         // an amount some states let a taxpayer deduct from
+                         // STATE taxable income with no federal counterpart
+                         // (e.g. a 529 contribution deduction). Zero federal
+                         // effect; reduces the state tax base only.
       rothConversionIncome: 0  // Roth conversion amount (§408A(d)(3)/§402A(c)(4)):
                          // ordinary income, but excluded from the NIIT `nii` base
                          // (§1411(c)(5) — a conversion raises MAGI but is not
@@ -327,7 +332,7 @@ window.TSIQ = window.TSIQ || {};
     // than allowing a second personal deduction) — PTET paid then credits
     // against that gross liability, so the owner's state bill stays flat
     // when the PTET rate matches the state rate, exactly as advertised. ----
-    var stateTaxGross = Math.max(0, agi + p.ptetDeducted + p.stateIncomeAddBack) * p.stateRate;
+    var stateTaxGross = Math.max(0, agi + p.ptetDeducted + p.stateIncomeAddBack - p.stateOnlyDeduction) * p.stateRate;
     var personalStateTax = Math.max(0, stateTaxGross - p.ptetPaid);
     // Most states don't refund PTET credit beyond the liability it offsets —
     // surface any over-remittance instead of silently discarding it.
@@ -464,7 +469,7 @@ window.TSIQ = window.TSIQ || {};
       incomeTaxBeforeCredits: incomeTaxBeforeCredits,
       ctcAllowed: ctcAllowed, actcAllowed: actcAllowed, otherCreditsAllowed: otherCreditsAllowed,
       corpTaxPaid: p.corpTaxPaid, otherTaxes: p.otherTaxes, incomeTax: incomeTax,
-      entityStateTax: p.entityStateTax,
+      entityStateTax: p.entityStateTax, stateOnlyDeduction: p.stateOnlyDeduction,
       fedPayments: fedPayments, statePayments: statePayments,
       totalPayments: fedPayments + statePayments,
       fedBalanceDue: fedBalanceDue, stateBalanceDue: stateBalanceDue,

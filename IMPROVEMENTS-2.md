@@ -139,7 +139,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   `requiresOneOf` for that (it's validator-enforced and would block the standalone income-valley
   use case).
 
-- [ ] **LB2. Qualified Charitable Distributions (QCD), 70½+.** (S/high)
+- [x] **LB2. Qualified Charitable Distributions (QCD), 70½+.** (S/high)
   Absent from the library, yet the engine models the three post-OBBBA reasons QCDs beat itemized
   gifts: the §170(p) 0.5%-AGI floor, the senior-deduction MAGI phase-out, and the SALT-cap
   phase-down (plus NIIT MAGI). apply() reduces `otherIncome`; 2026 limit **$111,000**/person
@@ -147,13 +147,13 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   a note that true eligibility is 70½ (§408(d)(8)) and RMDs begin at 73 (75 if born 1960+).
   Soft-validate against otherIncome only (it's a lump of IRA+pension+SS after import).
 
-- [ ] **LB3. Donate appreciated stock instead of cash.** (S/medium)
+- [x] **LB3. Donate appreciated stock instead of cash.** (S/medium)
   The gain-avoidance half of charitable giving is praised in daf-bunching prose but modeled
   nowhere. `appreciated-stock-gift.js`: in "replaces a planned sale" mode, reduce `ltcg` by
   (FMV − basis) when the baseline contains the gain; in "replaces planned cash gift" mode the
   avoided gain is future/invisible to the engine — advisory note only, no number.
 
-- [ ] **LB4. Equity-compensation suite: modeled NSO timing + advisory ISO/83(b).** (M/high)
+- [x] **LB4. Equity-compensation suite: modeled NSO timing + advisory ISO/83(b).** (M/high)
   Zero equity-comp coverage today despite the high-earner clientele. `nso-timing.js` (modeled)
   moves exercise spread between year 0/1 on `wages` (FICA/Additional-Medicare flow automatically),
   sibling of bracket-management.js. Center NSO exercise as the lever — RSU vesting is
@@ -161,24 +161,24 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   `iso-amt-83b.js` advisory-only: this engine computes no AMT, and ISO exercise is exactly where
   regular-tax-only numbers mislead.
 
-- [ ] **LB5. 529 / education funding with OBBBA expansions.** (M/medium)
+- [x] **LB5. 529 / education funding with OBBBA expansions.** (M/medium)
   Advisory federal side (OBBBA: K-12 limit $10k→$20k for tax years beginning after 12/31/2025;
   expanded K-12 categories + postsecondary credentialing effective at enactment 7/4/2025;
   SECURE 2.0 $35k 529→Roth; 5-year gift front-loading $95k/person) + one modelable piece: the
   state-deduction effect via the entered state rate.
 
-- [ ] **LB6. SIMPLE-to-safe-harbor-401(k) mid-year replacement (SECURE 2.0 §332).** (S/medium)
+- [x] **LB6. SIMPLE-to-safe-harbor-401(k) mid-year replacement (SECURE 2.0 §332).** (S/medium)
   The library models the two endpoints but not the transition a CPA actually advises an outgrown
   SIMPLE sponsor on. Advisory-only (prorated transition-year limits depend on the exact
   conversion date). Note: safe-harbor-401k is advisory/no-op, so today selecting it alongside
   simple-ira produces **no** conflict warning at all — this strategy fills that guidance void.
 
-- [ ] **LB7. OBBBA "Trump accounts" employer-contribution fringe.** (S/low)
+- [x] **LB7. OBBBA "Trump accounts" employer-contribution fringe.** (S/low)
   Advisory; verify details against P.L. 119-21 §70204 + Notice 2025-68 before authoring. Key
   facts to verify: $5,000/yr contribution cap; $1,000 pilot seed (births 2025–2028); employer
   exclusion **$2,500 per employee in aggregate** (not per child), counting against the $5,000 cap.
 
-- [ ] **LB8. Oil & gas working-interest IDCs.** (S/low)
+- [x] **LB8. Oil & gas working-interest IDCs.** (S/low)
   Advisory, risk-flagged: §263(c) year-1 IDC expensing; §469(c)(3) makes a working interest
   statutorily non-passive. Un-modelable here because of the §57(a)(2) AMT preference — though
   note §57(a)(2)(E) caps the preference for independent producers; honest framing is "AMT

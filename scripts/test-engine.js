@@ -721,6 +721,66 @@ function check(name, actual, expected, tol) {
   check('F31 sec179 15-yr class year-0 scheduleCNet', s0.profile.scheduleCNet, 360000);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 32 — Wave E library additions (LB2 QCD, LB3 appreciated-stock
+ * gift, LB4 NSO timing, LB5 529 state deduction): the four newly modeled
+ * strategies' quantified effects.
+ * ---------------------------------------------------------------------- */
+(function () {
+  require(path.join(root, 'js/data/strategies/qualified-charitable-distribution.js'));
+  require(path.join(root, 'js/data/strategies/appreciated-stock-gift.js'));
+  require(path.join(root, 'js/data/strategies/nso-timing.js'));
+  require(path.join(root, 'js/data/strategies/education-529.js'));
+  var qcd = TSIQ.strategyModules.filter(function (s) { return s.id === 'qualified-charitable-distribution'; })[0];
+  var stock = TSIQ.strategyModules.filter(function (s) { return s.id === 'appreciated-stock-gift'; })[0];
+  var nso = TSIQ.strategyModules.filter(function (s) { return s.id === 'nso-timing'; })[0];
+  var edu = TSIQ.strategyModules.filter(function (s) { return s.id === 'education-529'; })[0];
+
+  // LB2 QCD: capped at the $111,000 (2026) annual limit even when a larger
+  // amount and more otherIncome are both present.
+  var qOut1 = qcd.apply({ filingStatus: 'single', wages: 20000, otherIncome: 200000, age65Count: 1 },
+    { amount: 150000 }, 0, {});
+  check('F32 QCD capped at $111,000 annual limit', qOut1.profile.otherIncome, 89000);
+  // Capped by otherIncome actually present when smaller than the request.
+  var qOut2 = qcd.apply({ filingStatus: 'single', wages: 20000, otherIncome: 5000, age65Count: 1 },
+    { amount: 20000 }, 0, {});
+  check('F32 QCD capped at otherIncome present', qOut2.profile.otherIncome, 0);
+  // Gated on age65Count and otherIncome.
+  var qOut3 = qcd.apply({ filingStatus: 'single', wages: 20000, otherIncome: 50000, age65Count: 0 },
+    { amount: 20000 }, 0, {});
+  check('F32 QCD no-op when age65Count is 0', qOut3.profile.otherIncome, 50000);
+
+  // LB3 appreciated stock gift: 'replaces-sale' removes the built-in gain
+  // from ltcg (capped at baseline ltcg); 'replaces-cash-gift' leaves ltcg
+  // untouched (the gain was never in the baseline to begin with).
+  var sBase = { filingStatus: 'single', wages: 50000, ltcg: 80000 };
+  var sOut1 = stock.apply(sBase, { mode: 'replaces-sale', fmv: 50000, basis: 10000 }, 0, {});
+  check('F32 stock gift replaces-sale removes the 40000 built-in gain', sOut1.profile.ltcg, 40000);
+  var sOut2 = stock.apply(sBase, { mode: 'replaces-cash-gift', fmv: 50000, basis: 10000 }, 0, {});
+  check('F32 stock gift replaces-cash-gift leaves ltcg untouched', sOut2.profile.ltcg, 80000);
+  var sOut3 = stock.apply({ filingStatus: 'single', wages: 50000, ltcg: 10000 },
+    { mode: 'replaces-sale', fmv: 50000, basis: 10000 }, 0, {});
+  check('F32 stock gift gain removal capped at baseline ltcg', sOut3.profile.ltcg, 0);
+
+  // LB4 NSO timing: fires only in the selected (1-based) projection year.
+  var nBase = { filingStatus: 'single', wages: 100000 };
+  var nOut0 = nso.apply(nBase, { exerciseSpread: 60000, exerciseYear: 2 }, 0, {});
+  check('F32 NSO exerciseYear=2 does not fire at yearIndex 0', nOut0.profile.wages, 100000);
+  var nOut1 = nso.apply(nBase, { exerciseSpread: 60000, exerciseYear: 2 }, 1, {});
+  check('F32 NSO exerciseYear=2 fires at yearIndex 1', nOut1.profile.wages, 160000);
+
+  // LB5 529: state-only deduction (federal untouched), gated on the
+  // advisor confirming the state offers one.
+  var eBase = { filingStatus: 'single', wages: 100000, stateRate: 0.05 };
+  var eOutYes = edu.apply(eBase, { contribution: 10000, stateDeduction: 'yes' }, 0, {});
+  check('F32 529 stateOnlyDeduction equals the contribution', eOutYes.profile.stateOnlyDeduction, 10000);
+  var rBase529 = TSIQ.computeYear(eBase, {});
+  var rWith529 = TSIQ.computeYear(eOutYes.profile, {});
+  check('F32 529 state tax savings at the entered 5% rate', rBase529.personalStateTax - rWith529.personalStateTax, 500);
+  var eOutNo = edu.apply(eBase, { contribution: 10000, stateDeduction: 'no' }, 0, {});
+  check('F32 529 no state deduction modeled when advisor says no', eOutNo.profile.stateOnlyDeduction || 0, 0);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');
