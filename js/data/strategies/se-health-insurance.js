@@ -129,21 +129,28 @@ TSIQ.strategyModules.push({
 
   /**
    * Above-the-line §162(l) deduction via `adjustments` (income tax only — no
-   * SE tax effect, correct per §1402). Capped at available business earned
-   * income (scheduleCNet + ownerWages + passthroughK1 — a simplification of
-   * the per-business earned-income limit). Also reduces QBI (Form 8995
-   * instructions) via `qbiReduction`. Baseline is assumed NOT to already
-   * include the deduction — use for clients not currently claiming it.
+   * SE tax effect, correct per §1402). Capped at available EARNED income
+   * (scheduleCNet + ownerWages). K-1 ordinary income (passthroughK1) is NOT
+   * earned income for §162(l) — an S-corp shareholder's limit is their own
+   * W-2 wages from the entity (Notice 2008-1's W-2 add-back mechanic), not
+   * the entity's profit. Also reduces QBI (Form 8995 instructions) via
+   * `qbiReduction`. Baseline is assumed NOT to already include the
+   * deduction — use for clients not currently claiming it.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
     var premiums = params.annualPremiums || 0;
-    var earnedCap = Math.max(0, p.scheduleCNet || 0) +
-                    Math.max(0, p.ownerWages || 0) +
-                    Math.max(0, p.passthroughK1 || 0);
+    var earnedCap = Math.max(0, p.scheduleCNet || 0) + Math.max(0, p.ownerWages || 0);
     if (earnedCap <= 0) {
-      notes.push('§162(l) is limited to earned income from the business — no business earnings found in this profile. No benefit modeled.');
+      if ((p.passthroughK1 || 0) > 0) {
+        notes.push('§162(l) is limited to earned income (Schedule C profit or the ' +
+          'shareholder\'s own W-2 wages) — K-1 ordinary income alone does not support the ' +
+          'deduction. Run the premiums through owner W-2 wages first (pair with the S-Corp ' +
+          'Election / Reasonable Comp Study strategy). No benefit modeled.');
+      } else {
+        notes.push('§162(l) is limited to earned income from the business — no business earnings found in this profile. No benefit modeled.');
+      }
       return { profile: p, notes: notes };
     }
     var deductible = Math.min(premiums, earnedCap);

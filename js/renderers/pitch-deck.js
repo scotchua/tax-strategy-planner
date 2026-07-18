@@ -76,11 +76,21 @@ TSIQ.render = TSIQ.render || {};
     steps.forEach(function (step, i) {
       // Advisory/foundation strategies (no meaningful year-one math) get a
       // teaser slide without a dollar figure rather than an awkward "$0".
-      var numberBlock = step.incremental >= 500
-        ? '<div class="big">' + usd(step.incremental) + '</div>' +
-          '<div class="big-label">Additional first-year savings</div>'
-        : '<div class="big" style="font-size:6vh">Foundation</div>' +
+      // A strategy that genuinely COSTS money in year one (e.g. a C-corp
+      // conversion or a plan with real setup/admin cost) must show that
+      // plainly, not the flattering "Foundation" label reserved for
+      // structural/near-zero moves.
+      var numberBlock;
+      if (step.incremental >= 500) {
+        numberBlock = '<div class="big">' + usd(step.incremental) + '</div>' +
+          '<div class="big-label">Additional first-year savings</div>';
+      } else if (step.incremental <= -500) {
+        numberBlock = '<div class="big" style="color:#e8756a">' + usd(step.incremental) + '</div>' +
+          '<div class="big-label">Year-one investment — pays off in strategies that follow</div>';
+      } else {
+        numberBlock = '<div class="big" style="font-size:6vh">Foundation</div>' +
           '<div class="big-label">Structural — powers the strategies that follow</div>';
+      }
       slides += '<div class="slide center">' +
         '<div class="eyebrow">Strategy #' + (i + 1) + '</div>' + numberBlock +
         (step.strategy.client.teaser

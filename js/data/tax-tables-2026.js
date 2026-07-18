@@ -26,7 +26,7 @@ TSIQ.TABLES_2026 = {
     ],
     hoh: [
       [0, 0.10], [17700, 0.12], [67450, 0.22], [105700, 0.24],
-      [201750, 0.32], [256200, 0.35], [640600, 0.37]
+      [201775, 0.32], [256225, 0.35], [640600, 0.37]
     ]
   },
 
@@ -86,6 +86,43 @@ TSIQ.TABLES_2026 = {
     phaseDownStart: { single: 505000, mfj: 505000, mfs: 252500, hoh: 505000 },
     phaseDownRate: 0.30
   },
+
+  // OBBBA §70103 "senior deduction": $6,000 per qualifying individual age 65+
+  // (2026 figure; indexed 2027+), on top of the regular/aged standard
+  // deduction, available whether itemizing or not. Phases out 6% of MAGI
+  // over the threshold. Temporary (2025-2028) per current law.
+  seniorDeduction: {
+    amount: 6000,
+    magiPhaseOutStart: { single: 75000, mfj: 150000, mfs: 75000, hoh: 75000 },
+    phaseOutRate: 0.06
+  },
+
+  // §63(f) additional standard deduction for age 65+ (or blind) — added to
+  // the base standard deduction only (itemizers don't receive it separately;
+  // it's baked into the standard-vs-itemized comparison). 2026 figures.
+  additionalStdDedAged: { single: 2050, mfj: 1650, mfs: 1650, hoh: 2050 },
+
+  // OBBBA §70425, new IRC §170(p): itemizers may deduct charitable cash
+  // contributions only above 0.5% of AGI, effective for tax years beginning
+  // after 12/31/2025.
+  charitableAGIFloor: 0.005,
+
+  // OBBBA §70111, new IRC §68: overall limitation on itemized deductions for
+  // taxpayers in the 37% bracket — reduced by 2/37 of the lesser of total
+  // itemized deductions or the amount by which AGI exceeds the 37% bracket
+  // threshold for the filing status (approximates the "taxable income plus
+  // itemized deductions" test using AGI, consistent with how this engine
+  // keys its other AGI-based phase-outs).
+  itemizedLimitation: { factor: 2 / 37 },
+
+  // OBBBA §70424: non-itemizers may deduct up to this much of CASH charitable
+  // contributions in addition to the standard deduction (permanent, 2026+).
+  nonItemizerCharitable: { single: 1000, mfj: 2000, mfs: 1000, hoh: 1000 },
+
+  // OBBBA §70105, new §199A(b)(7): $400 (2026; indexed after 2026) minimum
+  // QBI deduction for taxpayers with at least $1,000 of aggregate QBI from a
+  // qualified trade or business in which they materially participate.
+  qbiMinimum: { amount: 400, floorQBI: 1000 },
 
   // Bonus depreciation: OBBBA restored permanent 100% bonus for qualified
   // property acquired and placed in service after Jan 19, 2025 (§168(k)).

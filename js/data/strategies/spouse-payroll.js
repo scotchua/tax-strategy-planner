@@ -119,12 +119,14 @@ TSIQ.strategyModules.push({
 
   /**
    * Honest MFJ modeling: salary is income-tax neutral (deducted from business
-   * income, added to wages) and COSTS FICA. Business income is reduced by
-   * salary + the employer FICA share (deductible); salary is added to wages;
-   * the modeled benefit is the 401(k) deferral, capped at min(election,
-   * salary, §402(g) limit), added to adjustments. The employee-side FICA
-   * (7.65% withheld from the spouse's pay) is a real cash cost that does not
-   * appear in the income-tax comparison — flagged in a note.
+   * income, added to wages) and COSTS FICA — BOTH halves. Business income is
+   * reduced by salary + the employer FICA share (deductible); salary is
+   * added to wages; the modeled benefit is the 401(k) deferral, capped at
+   * min(election, salary, §402(g) limit), added to adjustments. The
+   * employee-side FICA (7.65% withheld from the spouse's pay) is a real,
+   * unavoidable family cash cost — added to otherTaxes so it shows in the
+   * comparison, matching the convention used elsewhere in this library
+   * (e.g., the hire-children S-corp payroll route).
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -140,8 +142,10 @@ TSIQ.strategyModules.push({
     }
 
     var salary = params.spouseSalary || 0;
-    // Employer share of FICA: half of the combined SS + Medicare rates.
-    var employerFica = salary * ((tb.fica.ssRate + tb.fica.medicareRate) / 2);
+    // Employer AND employee shares of FICA: half of the combined SS + Medicare rates each.
+    var ficaHalf = salary * ((tb.fica.ssRate + tb.fica.medicareRate) / 2);
+    var employerFica = ficaHalf;
+    var employeeFica = ficaHalf;
     var totalCost = salary + employerFica;
 
     if (p.scheduleCNet > 0) {
@@ -150,6 +154,7 @@ TSIQ.strategyModules.push({
       p.passthroughK1 = p.passthroughK1 - totalCost;
     }
     p.wages = (p.wages || 0) + salary;
+    p.otherTaxes = (p.otherTaxes || 0) + employeeFica;
 
     var deferral = Math.min(
       params.spouse401kDeferral || 0,
@@ -162,8 +167,8 @@ TSIQ.strategyModules.push({
       notes.push('Spouse salary of ' + TSIQ.fmt.usd(salary) + ' is income-tax neutral on a ' +
         'joint return (deducted from the business, added to wages) and COSTS FICA: ' +
         TSIQ.fmt.usd(employerFica) + ' employer share is deducted here, and a matching ' +
-        'employee share is withheld from the spouse\'s pay (a real cash cost not shown ' +
-        'in this comparison).');
+        TSIQ.fmt.usd(employeeFica) + ' employee share (withheld from the spouse\'s pay) is ' +
+        'included in the numbers above via otherTaxes.');
       notes.push('Modeled benefit: ' + TSIQ.fmt.usd(deferral) + ' 401(k) deferral (capped at ' +
         'salary and the ' + TSIQ.fmt.usd(tb.limits.retirement.electiveDeferral401k) +
         ' §402(g) limit) plus unmodeled value — Social Security credits and fringe access.');

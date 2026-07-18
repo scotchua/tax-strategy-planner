@@ -148,6 +148,12 @@ TSIQ.strategyModules.push({
         'This strategy models incorporating a sole proprietorship as a C corporation.');
       return { profile: p, notes: notes };
     }
+    if (!(params.ownerSalary > 0)) {
+      notes.push('No reasonable compensation entered — a C corporation must pay its ' +
+        'owner-employee a reasonable W-2 salary before the remainder is taxed at the ' +
+        'entity level. Enter a salary to model this strategy; nothing is modeled at $0.');
+      return { profile: p, notes: notes };
+    }
     var tb = TSIQ.TABLES_2026;
     var f = tb.fica;
     var salary = Math.min(params.ownerSalary, p.scheduleCNet); // can't pay more than profit

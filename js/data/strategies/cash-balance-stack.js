@@ -136,6 +136,14 @@ TSIQ.strategyModules.push({
       }
       return { profile: p, notes: notes };
     }
+    if (state.hasSimplePlan) {
+      if (yearIndex === 0) {
+        notes.push('A SIMPLE IRA is also selected in this scenario — an employer generally ' +
+          'cannot maintain both a SIMPLE IRA and this stack in the same year (Notice 98-4). ' +
+          'No benefit modeled here; choose one plan type.');
+      }
+      return { profile: p, notes: notes };
+    }
 
     var amt = params.combinedContribution || 0;
     if (amt > earned) {
@@ -154,9 +162,11 @@ TSIQ.strategyModules.push({
         'contribution modeled. The TRUE ceiling is actuarially determined — this tool does ' +
         'not compute §404(a)(7) coordination or required staff cost; get a design study ' +
         'before quoting the client. Funding the cash balance layer is a multi-year commitment.');
-      notes.push('Do not also select the standalone Defined Benefit strategy in this ' +
-        'scenario — this strategy already includes the DB layer.');
+      notes.push('Do not also select the standalone Defined Benefit, Solo 401(k), SEP-IRA, ' +
+        'or Profit-Sharing strategies in this scenario — this combined figure already ' +
+        'includes those layers, and selecting them too would double-count the same dollars.');
     }
+    state.hasQualifiedPlan = true;
     return { profile: p, notes: notes };
   }
 });

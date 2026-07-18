@@ -181,6 +181,24 @@ TSIQ.strategyModules.push({
       }
     }
 
+    // §415(c) is a per-employer cap SHARED across every defined-contribution
+    // plan (Solo 401(k), SEP-IRA, profit-sharing) the same business maintains
+    // in the same year — track the running total across strategies via `state`.
+    state.dcAnnualAdditionsUsed = state.dcAnnualAdditionsUsed || 0;
+    var headroom = Math.max(0, totalCap - state.dcAnnualAdditionsUsed);
+    if (deferral + employer > headroom) {
+      employer = Math.max(0, headroom - deferral);
+      if (deferral > headroom) deferral = headroom;
+      if (yearIndex === 0) {
+        notes.push('Reduced further because another defined-contribution plan (SEP-IRA / ' +
+          'profit-sharing) in this scenario already used ' +
+          TSIQ.fmt.usd(state.dcAnnualAdditionsUsed) + ' of the shared §415(c) limit — ' +
+          'these plans do not stack independently.');
+      }
+    }
+    state.dcAnnualAdditionsUsed += deferral + employer;
+    state.hasQualifiedPlan = true;
+
     var total = deferral + employer;
     if (isSE) {
       p.adjustments = (p.adjustments || 0) + total;

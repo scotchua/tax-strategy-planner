@@ -148,6 +148,14 @@ TSIQ.strategyModules.push({
       }
       return { profile: p, notes: notes };
     }
+    if (state.hasSimplePlan) {
+      if (yearIndex === 0) {
+        notes.push('A SIMPLE IRA is also selected in this scenario — an employer generally ' +
+          'cannot maintain both a SIMPLE IRA and a defined benefit plan in the same year ' +
+          '(Notice 98-4). No benefit modeled here; choose one plan type.');
+      }
+      return { profile: p, notes: notes };
+    }
 
     var amt = params.annualContribution || 0;
     if (isSE && amt > p.scheduleCNet) {
@@ -174,7 +182,13 @@ TSIQ.strategyModules.push({
         'Funding is mandatory each year (§412/§430); treat this as a multi-year commitment.');
       notes.push('Projection assumes the same contribution every year — the actuary will ' +
         'recertify annually and the real number will drift.');
+      if (state.hasQualifiedPlan) {
+        notes.push('Another qualified plan (Solo 401(k) / SEP-IRA / profit-sharing / cash ' +
+          'balance) is also selected in this scenario — a real design combines these, but ' +
+          'this tool does not net the §404(a)(7) combined-plan deduction limit across them.');
+      }
     }
+    state.hasQualifiedPlan = true;
     return { profile: p, notes: notes };
   }
 });

@@ -128,13 +128,13 @@ TSIQ.strategyModules.push({
 
   /**
    * Year 1 only (harvesting is a discrete year-end action). Losses reduce
-   * ltcg; the engine treats negative ltcg as reducing income, so net ltcg is
-   * floored at −3,000 (§1211(b)) with the excess noted as a carryforward
-   * (the carryforward itself is not modeled in later projection years).
-   * Harvested gains ADD to ltcg — genuinely tax-free only within the 0%
-   * bracket; the engine's stacking shows any spillover into 15% honestly.
-   * The basis-reset benefit of gain harvesting (lower FUTURE gains) is not
-   * modeled — the shown cost is the conservative view.
+   * ltcg; the engine itself floors the AGI effect of a net capital loss at
+   * −3,000 (−1,500 MFS) per §1211(b) and reports the disallowed excess as
+   * capitalLossDisallowed (carryforward years not modeled). Harvested gains
+   * ADD to ltcg — genuinely tax-free only within the 0% bracket; the
+   * engine's stacking shows any spillover into 15% honestly. The basis-reset
+   * benefit of gain harvesting (lower FUTURE gains) is not modeled — the
+   * shown cost is the conservative view.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -147,11 +147,11 @@ TSIQ.strategyModules.push({
 
     if (losses > 0) {
       var newLtcg = (p.ltcg || 0) - losses;
-      if (newLtcg < -3000) {
-        var carryforward = -3000 - newLtcg;
-        newLtcg = -3000;
-        notes.push('Net capital loss limited to $3,000 against ordinary income (§1211(b)); ' +
-          TSIQ.fmt.usd(carryforward) + ' carries forward (carryforward years not modeled).');
+      var floor = (p.filingStatus === 'mfs') ? -1500 : -3000;
+      if (newLtcg < floor) {
+        notes.push('Net capital loss limited to ' + TSIQ.fmt.usd(-floor) +
+          ' against ordinary income (§1211(b)); ' + TSIQ.fmt.usd(floor - newLtcg) +
+          ' carries forward (carryforward years not modeled).');
       }
       p.ltcg = newLtcg;
       notes.push(TSIQ.fmt.usd(losses) + ' of losses harvested against capital gains. ' +

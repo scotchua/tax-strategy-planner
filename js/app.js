@@ -225,11 +225,13 @@
       isSSTB: $('isSSTB').checked,
       rentalNet: num('rentalNet'),
       rentalLossesUsable: $('rentalLossesUsable').checked,
+      reNonPassive: $('reNonPassive').checked,
       ltcg: num('ltcg'), qualDiv: num('qualDiv'),
       interest: num('interest'), otherIncome: num('otherIncome'),
       propertyTax: num('propertyTax'), mortgageInterest: num('mortgageInterest'),
       charitable: num('charitable'), otherItemized: num('otherItemized'),
       kidsCTC: num('kidsCTC'), otherDeps: num('otherDeps'),
+      age65Count: num('age65Count'),
       fedWithholding: num('fedWithholding'), fedEstimates: num('fedEstimates'),
       stateWithholding: num('stateWithholding'), stateEstimates: num('stateEstimates'),
       stateRate: num('stateRatePct') / 100
@@ -295,10 +297,12 @@
       '<div class="kpi-value" data-target="' + Math.round(base.totalBurden) + '">' + usd(base.totalBurden) + '</div></div>' +
       '<div class="kpi"><div class="kpi-label">With plan (' + esc(best.label) + ')</div>' +
       '<div class="kpi-value" data-target="' + Math.round(best.result.years[0].totalBurden) + '">' + usd(best.result.years[0].totalBurden) + '</div></div>' +
-      '<div class="kpi good"><div class="kpi-label">First-year savings</div>' +
+      '<div class="kpi ' + (yr1Savings >= 0 ? 'good' : 'bad') + '"><div class="kpi-label">First-year ' +
+      (yr1Savings >= 0 ? 'savings' : 'cost') + ' (' + esc(best.label) + ')</div>' +
       '<div class="kpi-value" data-target="' + Math.round(yr1Savings) + '">' + usd(yr1Savings) + '</div>' +
       (yr1Pct > 0 ? '<span class="kpi-chip">&#9660; ' + yr1Pct + '% less tax</span>' : '') + '</div>' +
-      '<div class="kpi good"><div class="kpi-label">' + run.years + '-year savings</div>' +
+      '<div class="kpi ' + (cumSavings >= 0 ? 'good' : 'bad') + '"><div class="kpi-label">' + run.years +
+      '-year ' + (cumSavings >= 0 ? 'savings' : 'cost') + '</div>' +
       '<div class="kpi-value" data-target="' + Math.round(cumSavings) + '">' + usd(cumSavings) + '</div></div>' +
       '</div>';
 
@@ -377,8 +381,11 @@
         allNotes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
     }
     html += '<p class="fine-print">2026 federal figures per Rev. Proc. 2025-32 as amended by OBBBA. ' +
-      'Projection applies 2026 law to all years. State tax modeled at a flat effective rate. ' +
-      'AMT, recapture on sale, and §461(l) not modeled — see CLAUDE.md scope notes.</p>';
+      'Projection years apply 2026 law AND 2026 dollar thresholds/brackets to every year shown ' +
+      '(not inflation-indexed) — later-year figures are illustrative, not indexed projections. ' +
+      'State tax modeled at a flat effective rate. Rental income does not enter the §199A QBI ' +
+      'calculation. AMT, depreciation recapture on sale, and §461(l) excess business loss are not ' +
+      'modeled — see the README Scope Notes.</p>';
 
     $('results').innerHTML = html;
     $('output-actions').style.display = 'flex';
@@ -458,9 +465,9 @@
   var PROFILE_FIELD_IDS = ['filingStatus', 'wages', 'scheduleCNet', 'passthroughK1',
     'entityW2Wages', 'rentalNet', 'ltcg', 'qualDiv', 'interest', 'otherIncome',
     'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized',
-    'kidsCTC', 'otherDeps', 'fedWithholding', 'fedEstimates',
+    'kidsCTC', 'otherDeps', 'age65Count', 'fedWithholding', 'fedEstimates',
     'stateWithholding', 'stateEstimates', 'stateRatePct', 'years', 'growthPct'];
-  var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable'];
+  var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive'];
 
   function exportClientFile() {
     var data = { format: 'tsiq-client-v1', clientName: $('clientName').value || 'Client', profile: {} };

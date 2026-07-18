@@ -126,6 +126,13 @@ TSIQ.strategyModules.push({
       notes.push('No Schedule C (sole proprietorship) profit found — nothing to convert.');
       return { profile: p, notes: notes };
     }
+    if (!(params.salary > 0)) {
+      notes.push('No reasonable compensation entered — an S corporation MUST pay its ' +
+        'owner-employee a reasonable W-2 salary before any profit passes through ' +
+        '(Watson v. United States, 668 F.3d 1008 — the #1 exam issue for this election). ' +
+        'Enter a salary to model this strategy; nothing is modeled at $0.');
+      return { profile: p, notes: notes };
+    }
     var f = TSIQ.TABLES_2026.fica;
     var salary = Math.min(params.salary, p.scheduleCNet); // can't pay more than profit
     if (salary < params.salary) {
@@ -146,6 +153,11 @@ TSIQ.strategyModules.push({
         ' of profit passes through free of employment tax.');
       if (entityProfit < 0) {
         notes.push('Warning: salary + payroll costs exceed profit — election is not beneficial at this income level.');
+      }
+      if (salary < 0.25 * profile.scheduleCNet) {
+        notes.push('Salary is under 25% of business profit — a low salary relative to profit ' +
+          'is the classic reasonable-compensation exam target (Watson). Support the figure ' +
+          'with a comp study before relying on these numbers.');
       }
     }
     return { profile: p, notes: notes };

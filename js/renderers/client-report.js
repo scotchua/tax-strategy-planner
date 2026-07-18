@@ -59,8 +59,11 @@ TSIQ.render = TSIQ.render || {};
       .concat(scenarios.map(function (sc) { return { label: sc.label, r: sc.result.years[0] }; }));
     var rows = [
       ['Federal income tax', 'incomeTax'],
-      ['Self-employment / payroll tax', function (r) { return r.seTax + r.ownerPayrollTax + r.addlMedicare; }],
+      ['Self-employment / payroll tax', function (r) {
+        return r.seTax + r.ownerPayrollTax + r.addlMedicare + r.otherTaxes - r.excessSSCredit;
+      }],
       ['Net investment income tax', 'niit'],
+      ['Business entity-level tax', 'corpTaxPaid'],
       ['State tax (incl. entity-level)', 'totalState']
     ];
     var html = '<table><thead><tr><th>First-Year Tax (2026)</th>' +
@@ -170,12 +173,11 @@ TSIQ.render = TSIQ.render || {};
     var firstYearSavings = data.baseline.years[0].totalBurden - best.result.years[0].totalBurden;
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
-    var uniqueStrategies = [];
-    data.scenarios.forEach(function (sc) {
-      sc.strategies.forEach(function (s) {
-        if (uniqueStrategies.indexOf(s) === -1) uniqueStrategies.push(s);
-      });
-    });
+    // Strategy pages must match the BEST scenario only — the headline dollar
+    // figures above come from `best`, so including strategies from OTHER
+    // scenarios here would print recommendation pages for moves that aren't
+    // in the plan the numbers describe.
+    var uniqueStrategies = best.strategies.slice();
 
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<title>Tax Strategy Plan — ' + esc(data.clientName) + '</title>' +

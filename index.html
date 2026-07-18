@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tax Strategy Planner</title>
+<link rel="icon" href="app.ico">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -58,6 +59,13 @@
             <option value="mfs">Married Filing Separately</option>
           </select>
         </div>
+        <div class="field"><label for="age65Count">Filer/spouse age 65+ (count)</label>
+          <select id="age65Count">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -84,7 +92,8 @@
       </div>
       <div class="check-row">
         <span class="field check"><input id="isSSTB" type="checkbox"><label for="isSSTB">Specified service business (SSTB)</label></span>
-        <span class="field check"><input id="rentalLossesUsable" type="checkbox" checked><label for="rentalLossesUsable">Rental losses currently usable (RE pro / passive income)</label></span>
+        <span class="field check"><input id="rentalLossesUsable" type="checkbox" checked><label for="rentalLossesUsable" title="&sect;469: current-year losses usable via passive income elsewhere or the $25k active-participation allowance">Rental losses currently usable this year (&sect;469)</label></span>
+        <span class="field check"><input id="reNonPassive" type="checkbox"><label for="reNonPassive" title="&sect;1411: real estate professional or material participation makes rental a non-passive trade or business, excluding it from Net Investment Income Tax. Independent of the &sect;469 usability checkbox above.">Real estate professional / non-passive (excludes rental from NIIT)</label></span>
       </div>
     </div>
 

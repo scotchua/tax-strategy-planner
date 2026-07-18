@@ -118,16 +118,19 @@ TSIQ.strategyModules.push({
   },
 
   /**
-   * Same engine effect as REPS — flips the §469 gate — but through the
-   * short-term-rental doorway (avg stay ≤ 7 days + material participation),
-   * so no real-estate-professional hour tests are needed. Flag set every
-   * projection year; notes only in year 1.
+   * Same engine effect as REPS — flips the §469 gate AND the §1411 non-passive
+   * gate — but through the short-term-rental doorway (avg stay ≤ 7 days +
+   * material participation), so no real-estate-professional hour tests are
+   * needed: with material participation the activity is a non-passive trade
+   * or business, excluded from NII under §1411(c)(2) as well. Both flags set
+   * every projection year; notes only in year 1.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
     var alreadyUsable = !!p.rentalLossesUsable;
     p.rentalLossesUsable = true;
+    p.reNonPassive = true;
     if (yearIndex === 0) {
       if (alreadyUsable) {
         notes.push('Rental losses were already flagged usable — short-term rental ' +

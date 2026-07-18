@@ -149,6 +149,22 @@ TSIQ.strategyModules.push({
         (isSE ? '~20% of net self-employment earnings' : '25% of owner W-2 wages') + '.');
     }
 
+    // §415(c) is shared across every DC plan (Solo 401(k), SEP-IRA,
+    // profit-sharing) the same business maintains in the same year.
+    state.dcAnnualAdditionsUsed = state.dcAnnualAdditionsUsed || 0;
+    var headroom = Math.max(0, lim.dcAnnualAdditions - state.dcAnnualAdditionsUsed);
+    if (amt > headroom) {
+      amt = headroom;
+      if (yearIndex === 0) {
+        notes.push('Reduced further because another defined-contribution plan (Solo 401(k) / ' +
+          'profit-sharing) in this scenario already used ' +
+          TSIQ.fmt.usd(state.dcAnnualAdditionsUsed) + ' of the shared §415(c) limit — ' +
+          'a SEP-IRA generally is not layered on top of a 401(k) for the same business anyway.');
+      }
+    }
+    state.dcAnnualAdditionsUsed += amt;
+    state.hasQualifiedPlan = true;
+
     if (isSE) {
       p.adjustments = (p.adjustments || 0) + amt;
       p.qbiReduction = (p.qbiReduction || 0) + amt; // SE retirement deduction reduces §199A QBI

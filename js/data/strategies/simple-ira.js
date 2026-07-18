@@ -134,6 +134,22 @@ TSIQ.strategyModules.push({
       return { profile: p, notes: notes };
     }
 
+    // An employer generally cannot maintain a SIMPLE IRA in the same year it
+    // maintains another qualified retirement plan (Notice 98-4, Q&A E-1) —
+    // if a Solo 401(k) / SEP-IRA / profit-sharing / cash balance / DB
+    // strategy already ran in this scenario, no SIMPLE benefit is modeled.
+    if (state.hasQualifiedPlan) {
+      if (yearIndex === 0) {
+        notes.push('Another qualified plan (Solo 401(k) / SEP-IRA / profit-sharing / cash ' +
+          'balance / defined benefit) is also selected in this scenario — an employer ' +
+          'generally cannot maintain a SIMPLE IRA in the same year as another qualified ' +
+          'plan (Notice 98-4). No SIMPLE benefit modeled; choose one plan type.');
+      }
+      state.hasSimplePlan = true;
+      return { profile: p, notes: notes };
+    }
+    state.hasSimplePlan = true;
+
     // Compensation base: net SE earnings (0.9235 factor) or owner W-2 wages.
     var comp = isSE ? p.scheduleCNet * 0.9235 : p.ownerWages;
 

@@ -138,6 +138,14 @@ TSIQ.strategyModules.push({
       }
       return { profile: p, notes: notes };
     }
+    if (state.hasSimplePlan) {
+      if (yearIndex === 0) {
+        notes.push('A SIMPLE IRA is also selected in this scenario — an employer generally ' +
+          'cannot maintain both a SIMPLE IRA and a profit-sharing plan in the same year ' +
+          '(Notice 98-4). No benefit modeled here; choose one plan type.');
+      }
+      return { profile: p, notes: notes };
+    }
 
     var owner = Math.min(params.ownerAllocation || 0, lim.dcAnnualAdditions);
     if ((params.ownerAllocation || 0) > lim.dcAnnualAdditions && yearIndex === 0) {
@@ -145,6 +153,22 @@ TSIQ.strategyModules.push({
         ' (§415(c) annual additions, 2026). The cap includes any 401(k) deferrals and ' +
         'other employer contributions — the TPA computes the real headroom.');
     }
+
+    // §415(c) is shared across every DC plan (Solo 401(k), SEP-IRA,
+    // profit-sharing) the same business maintains in the same year.
+    state.dcAnnualAdditionsUsed = state.dcAnnualAdditionsUsed || 0;
+    var headroom = Math.max(0, lim.dcAnnualAdditions - state.dcAnnualAdditionsUsed);
+    if (owner > headroom) {
+      owner = headroom;
+      if (yearIndex === 0) {
+        notes.push('Reduced further because another defined-contribution plan (Solo 401(k) / ' +
+          'SEP-IRA) in this scenario already used ' + TSIQ.fmt.usd(state.dcAnnualAdditionsUsed) +
+          ' of the shared §415(c) limit.');
+      }
+    }
+    state.dcAnnualAdditionsUsed += owner;
+    state.hasQualifiedPlan = true;
+
     var staff = params.staffCost || 0;
 
     p.adjustments = (p.adjustments || 0) + owner;

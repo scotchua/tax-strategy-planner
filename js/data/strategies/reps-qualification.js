@@ -119,17 +119,20 @@ TSIQ.strategyModules.push({
   },
 
   /**
-   * No dollar inputs — this strategy flips the engine's §469 gate. Setting
-   * rentalLossesUsable = true lets rental losses (including those created by
-   * cost segregation / bonus / QIP strategies) offset nonpassive income in
-   * the scenario instead of being suspended. The flag is set every projection
-   * year; notes only in year 1.
+   * No dollar inputs — this strategy flips two independent engine gates.
+   * rentalLossesUsable = true (§469) lets rental losses (including those
+   * created by cost segregation / bonus / QIP strategies) offset nonpassive
+   * income instead of being suspended. reNonPassive = true (§1411) also
+   * excludes rental income from NIIT — REPS qualification is a non-passive,
+   * material-participation trade or business under both sections. Both
+   * flags are set every projection year; notes only in year 1.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
     var alreadyUsable = !!p.rentalLossesUsable;
     p.rentalLossesUsable = true;
+    p.reNonPassive = true;
     if (yearIndex === 0) {
       if (alreadyUsable) {
         notes.push('Rental losses were already flagged usable — REPS documented as the ' +

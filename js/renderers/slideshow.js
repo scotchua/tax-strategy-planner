@@ -181,12 +181,11 @@ TSIQ.render = TSIQ.render || {};
     var pctSmaller = b0 > 0 ? Math.round(yr1Savings / b0 * 100) : 0;
     var effRate = baseR.totalIncome > 0 ? (b0 / baseR.totalIncome * 100).toFixed(1) : '0';
 
-    var uniqueStrategies = [];
-    data.scenarios.forEach(function (sc) {
-      sc.strategies.forEach(function (s) {
-        if (uniqueStrategies.indexOf(s) === -1) uniqueStrategies.push(s);
-      });
-    });
+    // Strategy list must match the BEST scenario only — every dollar figure
+    // in this deck (yr1Savings, cumSavings, stepSavings) comes from `best`,
+    // so pulling strategies from OTHER scenarios here would show moves that
+    // aren't part of the plan the numbers describe.
+    var uniqueStrategies = best.strategies.slice();
     var n = uniqueStrategies.length;
     var movesWord = n + (n === 1 ? ' move' : ' moves');
 
@@ -325,7 +324,9 @@ TSIQ.render = TSIQ.render || {};
     var cols = Math.min(n, 5);
     var overviewCards = uniqueStrategies.map(function (s, i) {
       var sv = stepSavings[s.id];
-      var amount = (sv !== undefined && sv >= 500)
+      // A meaningfully NEGATIVE first-year effect is a real cost — show the
+      // signed figure rather than mislabeling it "Foundation".
+      var amount = (sv !== undefined && (sv >= 500 || sv <= -500))
         ? usd(sv)
         : (s.modeled === false ? 'Foundation' : '&mdash;');
       return '<div class="card on-dark anim-' + Math.min(i + 2, 5) + '" style="padding:38px 28px;display:flex;flex-direction:column">' +
@@ -351,6 +352,9 @@ TSIQ.render = TSIQ.render || {};
       if (sv !== undefined && sv >= 500) {
         calloutLabel = 'Estimated first-year savings';
         calloutValue = '<div class="mono" style="font-size:64px;font-weight:700">' + usd(sv) + '</div>';
+      } else if (sv !== undefined && sv <= -500) {
+        calloutLabel = 'Year-one investment — pays off in strategies that follow';
+        calloutValue = '<div class="mono" style="font-size:64px;font-weight:700;color:#c0392b">' + usd(sv) + '</div>';
       } else {
         calloutLabel = 'Foundation move';
         calloutValue = '<div class="serif" style="font-size:34px;font-weight:700;line-height:1.25">Strengthens the whole plan</div>';
@@ -408,7 +412,7 @@ TSIQ.render = TSIQ.render || {};
     /* --------------------------- 8 · next steps --------------------------- */
     var recapRows = uniqueStrategies.map(function (s) {
       var sv = stepSavings[s.id];
-      var amount = (sv !== undefined && sv >= 500) ? usd(sv)
+      var amount = (sv !== undefined && (sv >= 500 || sv <= -500)) ? usd(sv)
         : (s.modeled === false ? 'Foundation' : '&mdash;');
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:20px 40px;border-bottom:1px solid var(--line-soft)">' +
         '<span class="serif" style="font-size:24px;font-weight:600">' + esc(s.name) + '</span>' +
