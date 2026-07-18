@@ -47,6 +47,19 @@ window.TSIQ = window.TSIQ || {};
     // SALT cap both expire on enacted dates within a long projection) rather
     // than replaying every 2026 provision unchanged for 30 years.
     p.projTaxYear = TSIQ.TABLES_2026.taxYear + yearIndex;
+    // PJ6: income-transition events ("retires in year N", "sells the
+    // business in year N") — applied AFTER the smooth growth factor above,
+    // since they represent a real step change in the client's facts, not a
+    // continuation of compounding. fromYear is 1-based (1 = this year) and
+    // the change persists in every later year too. Independently
+    // recomputed off THIS year's already-grown value each time (not
+    // chained from a prior year's transitioned value), so 'multiply-by'
+    // still compounds naturally at the same growth rate after the step,
+    // and 'set-to' stays flat at that exact dollar figure from fromYear on.
+    (base.incomeTransitions || []).forEach(function (t) {
+      if (yearIndex < t.fromYear - 1 || typeof p[t.field] !== 'number') return;
+      p[t.field] = (t.mode === 'multiply-by') ? p[t.field] * t.value : t.value;
+    });
     return p;
   }
 

@@ -820,6 +820,29 @@ function check(name, actual, expected, tol) {
     withCumulative[0].cumulativeIncremental !== undefined ? 1 : 0, 1, 0);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 34 — PJ6 income-transition events: a 'set-to' step (retirement —
+ * wages drop to exactly $0 from the given year on, after growing normally
+ * before it) and a 'multiply-by' step (a 50% business-income cut that
+ * still compounds at the base growth rate afterward, not frozen flat).
+ * ---------------------------------------------------------------------- */
+(function () {
+  var retireProfile = { filingStatus: 'single', wages: 100000,
+    incomeTransitions: [{ fromYear: 3, field: 'wages', mode: 'set-to', value: 0 }] };
+  var retireOut = TSIQ.computeBaseline(retireProfile, 4, 0.03);
+  check('F34 set-to: wages grow normally before fromYear (yr2)', retireOut.years[1].profile.wages, 103000);
+  check('F34 set-to: wages drop to exactly 0 at fromYear (yr3)', retireOut.years[2].profile.wages, 0);
+  check('F34 set-to: wages stay 0 after fromYear (yr4)', retireOut.years[3].profile.wages, 0);
+
+  var saleProfile = { filingStatus: 'single', scheduleCNet: 200000,
+    incomeTransitions: [{ fromYear: 2, field: 'scheduleCNet', mode: 'multiply-by', value: 0.5 }] };
+  var saleOut = TSIQ.computeBaseline(saleProfile, 3, 0.03);
+  check('F34 multiply-by: unaffected before fromYear (yr1)', saleOut.years[0].profile.scheduleCNet, 200000);
+  check('F34 multiply-by: halved at fromYear (yr2)', saleOut.years[1].profile.scheduleCNet, 103000);
+  check('F34 multiply-by: keeps compounding at the base rate after the step (yr3)',
+    saleOut.years[2].profile.scheduleCNet, 106090, 0.5);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');

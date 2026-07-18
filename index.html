@@ -140,6 +140,52 @@
         <div class="field"><label for="years">Projection years</label><input id="years" type="number" value="10" min="1" max="30"></div>
         <div class="field"><label for="growthPct">Annual income growth (%)</label><input id="growthPct" type="number" value="3" step="0.5"></div>
       </div>
+      <details class="scenario-overrides" style="margin-top:12px">
+        <summary>Income changes during the projection (optional) — e.g. "retires in year 5", "sells the business in year 3"</summary>
+        <p class="hint" style="margin:0 0 10px">Applied AFTER the smooth annual growth above — a real step change (retirement, a sale), not a continuation of compounding. Affects the baseline and every scenario identically (this describes the client's actual future facts, not a scenario-specific what-if — use the Scenario fact overrides above for that). Up to 2 changes.</p>
+        <div class="grid" id="income-transitions">
+          <div class="field"><label for="it1-fromYear">Change 1: starting projection year (1 = this year)</label><input id="it1-fromYear" type="number" min="1" placeholder="none"></div>
+          <div class="field"><label for="it1-field">Field</label>
+            <select id="it1-field">
+              <option value="wages">Wages</option>
+              <option value="scheduleCNet">Schedule C net profit</option>
+              <option value="passthroughK1">K-1 passthrough income</option>
+              <option value="rentalNet">Rental net income</option>
+              <option value="ltcg">Long-term capital gains</option>
+              <option value="qualDiv">Qualified dividends</option>
+              <option value="interest">Interest income</option>
+              <option value="otherIncome">Other income</option>
+            </select>
+          </div>
+          <div class="field"><label for="it1-mode">Change type</label>
+            <select id="it1-mode">
+              <option value="set-to">Set to this amount</option>
+              <option value="multiply-by">Multiply by this factor</option>
+            </select>
+          </div>
+          <div class="field"><label for="it1-value">Amount / factor</label><input id="it1-value" type="number" placeholder="0"></div>
+          <div class="field"><label for="it2-fromYear">Change 2: starting projection year</label><input id="it2-fromYear" type="number" min="1" placeholder="none"></div>
+          <div class="field"><label for="it2-field">Field</label>
+            <select id="it2-field">
+              <option value="wages">Wages</option>
+              <option value="scheduleCNet">Schedule C net profit</option>
+              <option value="passthroughK1">K-1 passthrough income</option>
+              <option value="rentalNet">Rental net income</option>
+              <option value="ltcg">Long-term capital gains</option>
+              <option value="qualDiv">Qualified dividends</option>
+              <option value="interest">Interest income</option>
+              <option value="otherIncome">Other income</option>
+            </select>
+          </div>
+          <div class="field"><label for="it2-mode">Change type</label>
+            <select id="it2-mode">
+              <option value="set-to">Set to this amount</option>
+              <option value="multiply-by">Multiply by this factor</option>
+            </select>
+          </div>
+          <div class="field"><label for="it2-value">Amount / factor</label><input id="it2-value" type="number" placeholder="0"></div>
+        </div>
+      </details>
     </div>
   </section>
 

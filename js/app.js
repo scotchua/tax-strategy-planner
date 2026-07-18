@@ -776,8 +776,34 @@
   /* ----------------------------- profile IO ------------------------------ */
   function num(id) { return parseFloat($(id).value) || 0; }
 
+  // PJ6: up to 2 income-transition events ("retires in year N", "sells the
+  // business in year N") — a real step change applied AFTER the smooth
+  // annual growth rate, identically for the baseline and every scenario
+  // (these describe the client's actual future facts, not a scenario-
+  // specific what-if — that's what the Scenario fact overrides are for).
+  // A row with no fromYear entered is skipped (not a 0-value change).
+  var INCOME_TRANSITION_FIELDS = ['wages', 'scheduleCNet', 'passthroughK1', 'rentalNet',
+    'ltcg', 'qualDiv', 'interest', 'otherIncome'];
+  function readIncomeTransitions() {
+    var out = [];
+    ['it1', 'it2'].forEach(function (prefix) {
+      var fromYearEl = $(prefix + '-fromYear');
+      if (!fromYearEl || fromYearEl.value === '') return;
+      var fromYear = Math.round(parseFloat(fromYearEl.value));
+      if (!(fromYear >= 1)) return;
+      out.push({
+        fromYear: fromYear,
+        field: $(prefix + '-field').value,
+        mode: $(prefix + '-mode').value,
+        value: parseFloat($(prefix + '-value').value) || 0
+      });
+    });
+    return out;
+  }
+
   function readProfile() {
     return {
+      incomeTransitions: readIncomeTransitions(),
       filingStatus: $('filingStatus').value,
       wages: num('wages'),
       scheduleCNet: num('scheduleCNet'),
@@ -827,6 +853,56 @@
     var ltcgRate = marginalDelta(p, 'ltcg', 1000);
     var dedRate = -marginalDelta(p, 'adjustments', 1000); // deduction: negative burden delta -> positive "rate saved"
     return { effRate: effRate, bizRate: bizRate, ltcgRate: ltcgRate, dedRate: dedRate };
+  }
+
+  // PJ4: growth-rate + assumption sensitivity band ("which assumption
+  // moves this answer" — the honest framing for a single-rate compound
+  // over a multi-year window). Perturbs ONE assumption at a time off the
+  // BEST scenario's own (possibly override-merged) profile and growth
+  // rate, recomputing both baseline and scenario fresh each time — cheap
+  // (a handful of pure computeScenario calls) and never mutates `run`.
+  function perturbedCumulative(run, best, opts) {
+    opts = opts || {};
+    var growthRate = Math.max(0, run.growthRate + (opts.growthDelta || 0));
+    var incomeMult = opts.incomeMultiplier || 1;
+    var stateDelta = opts.stateRateDelta || 0;
+    function perturb(p) {
+      var out = Object.assign({}, p);
+      out.stateRate = Math.max(0, out.stateRate + stateDelta);
+      if (incomeMult !== 1) {
+        out.scheduleCNet = (out.scheduleCNet || 0) * incomeMult;
+        out.passthroughK1 = (out.passthroughK1 || 0) * incomeMult;
+      }
+      return out;
+    }
+    var baseline = TSIQ.computeBaseline(perturb(run.profile), run.years, growthRate);
+    var scenario = TSIQ.computeScenario(perturb(best.profile || run.profile), best.selections, run.years, growthRate);
+    return baseline.totals.totalBurden - scenario.totals.totalBurden;
+  }
+  function sensitivityHtml(run) {
+    var best = TSIQ.bestScenario(run.scenarios, run.forcedWinnerLabel);
+    var baseCase = run.baseline.totals.totalBurden - best.result.totals.totalBurden;
+    var rows = [
+      ['Current assumptions (' + (run.growthRate * 100).toFixed(1) + '% growth)', baseCase, true],
+      ['0% income growth', perturbedCumulative(run, best, { growthDelta: -run.growthRate }), false],
+      ['Growth +2 points', perturbedCumulative(run, best, { growthDelta: 0.02 }), false],
+      ['Growth -2 points', perturbedCumulative(run, best, { growthDelta: -0.02 }), false],
+      ['Business income +15%', perturbedCumulative(run, best, { incomeMultiplier: 1.15 }), false],
+      ['Business income -15%', perturbedCumulative(run, best, { incomeMultiplier: 0.85 }), false],
+      ['State rate +1 point', perturbedCumulative(run, best, { stateRateDelta: 0.01 }), false],
+      ['State rate -1 point', perturbedCumulative(run, best, { stateRateDelta: -0.01 }), false]
+    ];
+    var values = rows.map(function (r) { return r[1]; });
+    var lo = Math.min.apply(null, values), hi = Math.max.apply(null, values);
+    return '<h3>Assumption Sensitivity — ' + esc(best.label) + '</h3>' +
+      '<p class="hint">The ' + run.years + '-year cumulative savings claim above is a single-rate compound — ' +
+      'here is the range it actually spans as each assumption swings one at a time, holding everything else at ' +
+      'its current-assumptions value. Best-case ' + usd(hi) + ', worst-case ' + usd(lo) + '.</p>' +
+      '<div class="table-scroll"><table class="results-table"><thead><tr><th>Assumption</th>' +
+      '<th>' + run.years + '-yr cumulative savings</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr' + (r[2] ? ' class="total-row"' : '') + '><td>' + esc(r[0]) + '</td><td>' + usd(r[1]) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
   }
 
   // ET1/ET2/ET3: per-strategy contribution table — what each strategy in
@@ -1253,6 +1329,7 @@
     html += '</tr></tbody></table></div>';
 
     html += contributionTable(run, base.totalBurden);
+    html += sensitivityHtml(run);
 
     // planning notes from the strategies + engine
     var allNotes = [];
@@ -1406,7 +1483,9 @@
     'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized',
     'kidsCTC', 'otherDeps', 'age65Count', 'fedWithholding', 'fedEstimates',
     'stateWithholding', 'stateEstimates', 'priorYearTax', 'priorYearAGI',
-    'stateRatePct', 'years', 'growthPct'];
+    'stateRatePct', 'years', 'growthPct',
+    'it1-fromYear', 'it1-field', 'it1-mode', 'it1-value', // PJ6
+    'it2-fromYear', 'it2-field', 'it2-mode', 'it2-value']; // PJ6
   var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive',
     'ltcgOneTime', 'otherIncomeOneTime'];
   var VALID_FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];

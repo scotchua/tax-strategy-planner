@@ -300,7 +300,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   AGI-keyed phase-outs. Split GROWTH_FIELDS: hold itemized-deduction fields flat (or a separate
   rate); disclose in the fine print.
 
-- [ ] **PJ4. Growth-rate + assumption sensitivity band.** (M/medium)
+- [x] **PJ4. Growth-rate + assumption sensitivity band.** (M/medium)
   Re-run baseline/best at 0% growth (2 extra scenario runs, ~free) and present the cumulative
   claim as a range; optionally a small tornado table perturbing business income ±15%, growth
   ±2pts, state rate ±1pt — "which assumption moves this answer" is the honest framing for a
@@ -312,7 +312,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   tweak, not a bug). Add a "years claimed" input defaulting to 1, matching how energy-credits
   and §179D already behave.
 
-- [ ] **PJ6. Income-transition events ("retires in year N", "sells in year N").** (L/medium)
+- [x] **PJ6. Income-transition events ("retires in year N", "sells in year N").** (L/medium)
   The projection can only model smooth compounding — clients within sight of retirement are
   structurally wrong in both columns. Lightest fit: an "income changes" mini-panel (extending
   the F7 overrides pattern) with up to 2 rows of {fromYear, field, set-to/multiply-by, value},
