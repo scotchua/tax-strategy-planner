@@ -107,7 +107,7 @@
   }
 
   /* ------------------- brand / white-label settings ---------------------- */
-  var DEFAULT_BRAND = { name: 'Your Firm', color: '#8a6d3b', logo: '' };
+  var DEFAULT_BRAND = { name: 'Your Firm', color: TSIQ.DEFAULT_BRAND_COLOR, logo: '' };
 
   // Validate shape/format rather than trusting localStorage blindly — on
   // file://, all local HTML files share one origin's localStorage, so any
@@ -422,9 +422,7 @@
     }));
 
     // Headline KPIs from the best scenario
-    var best = run.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, run.scenarios[0]);
+    var best = TSIQ.bestScenario(run.scenarios);
     var yr1Savings = base.totalBurden - best.result.years[0].totalBurden;
     var cumSavings = run.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
@@ -1003,6 +1001,21 @@
     $('lib-count').textContent = '(' + TSIQ.STRATEGIES.length + ')';
   }
 
+  // TSIQ.STRATEGIES is a load-time snapshot of TSIQ.strategyModules taken by
+  // strategies-index.js — any strategy <script> tag placed after that point
+  // in index.html would push to strategyModules but never appear in
+  // STRATEGIES, silently vanishing from the library with no error. Catch
+  // that class of load-order mistake immediately instead of a quiet gap.
+  function checkStrategySnapshotDrift() {
+    var pushed = (TSIQ.strategyModules || []).length;
+    var loaded = (TSIQ.STRATEGIES || []).length;
+    if (pushed !== loaded) {
+      console.error('TSIQ.STRATEGIES (' + loaded + ') does not match TSIQ.strategyModules (' +
+        pushed + ') — a strategy <script> tag likely loads after js/data/strategies-index.js ' +
+        'in index.html and is silently missing from the app. Run node scripts/build-index.js.');
+    }
+  }
+
   // Number inputs change value on mouse-wheel scroll while focused — a
   // real hazard on a long form the advisor scrolls with the mouse over
   // fields. Blur on wheel (delegated so it covers dynamically-built
@@ -1017,6 +1030,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     initBrand();
+    checkStrategySnapshotDrift();
     initTabs();
     buildLibrary();
     buildScenarioPicker('sc2', 'sc2-strategies');

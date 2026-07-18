@@ -20,12 +20,12 @@ TSIQ.render = TSIQ.render || {};
     '.cover h1{font-size:30pt;font-weight:normal;margin-bottom:12px}' +
     '.cover .client{font-size:17pt;color:#445;margin-bottom:40px}' +
     '.cover .date{color:#667;font-size:11pt}' +
-    'h2{font-size:18pt;font-weight:normal;border-bottom:2px solid #8a6d3b;padding-bottom:6px;margin-bottom:16px}' +
+    'h2{font-size:18pt;font-weight:normal;border-bottom:2px solid ' + TSIQ.DEFAULT_BRAND_COLOR + ';padding-bottom:6px;margin-bottom:16px}' +
     'h3{font-size:13pt;margin:16px 0 8px;color:#2c3e50}' +
     'p{margin-bottom:10px}' +
     'ul{margin:6px 0 12px 22px}li{margin-bottom:5px}' +
     '.headline{font-size:15pt;color:%ACCENT_TEXT%;font-style:italic;margin-bottom:12px}' +
-    '.analogy{background:#f7f4ee;border-left:4px solid #8a6d3b;padding:12px 16px;margin:14px 0;font-style:italic}' +
+    '.analogy{background:#f7f4ee;border-left:4px solid ' + TSIQ.DEFAULT_BRAND_COLOR + ';padding:12px 16px;margin:14px 0;font-style:italic}' +
     'table{width:100%;border-collapse:collapse;margin:12px 0;font-size:10.5pt}' +
     'th,td{padding:7px 10px;border-bottom:1px solid #d8d8d8;text-align:right}' +
     'th:first-child,td:first-child{text-align:left}' +
@@ -46,14 +46,12 @@ TSIQ.render = TSIQ.render || {};
     'table{page-break-inside:auto;break-inside:auto}' +
     'tr{page-break-inside:avoid;break-inside:avoid}}';
 
-  function scenarioLabel(sc) { return sc.label; }
-
   // Brand-aware print CSS + logo block (Brand Settings flow through here).
   // Sink-side validation/escaping — defense-in-depth on top of the
   // brand-settings load/save validation in app.js (sanitizeBrand).
   function safeBrandColor() {
     var color = TSIQ.brand && TSIQ.brand.color;
-    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : '#8a6d3b';
+    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : TSIQ.DEFAULT_BRAND_COLOR;
   }
   // WCAG relative luminance -> darken a too-light brand color until it
   // reads at roughly 4.5:1 contrast as TEXT on this report's white page.
@@ -74,7 +72,7 @@ TSIQ.render = TSIQ.render || {};
   }
   function brandCss() {
     var color = safeBrandColor();
-    return REPORT_CSS.split('#8a6d3b').join(color).split('%ACCENT_TEXT%').join(readableAccentText(color));
+    return REPORT_CSS.split(TSIQ.DEFAULT_BRAND_COLOR).join(color).split('%ACCENT_TEXT%').join(readableAccentText(color));
   }
   function brandLogoBlock(marginBottom) {
     var logo = TSIQ.brand && TSIQ.brand.logo;
@@ -175,7 +173,7 @@ TSIQ.render = TSIQ.render || {};
       '<div class="page">' +
       '<div style="text-align:center;margin-bottom:22px">' + brandLogoBlock('10px') +
       '<div style="font-size:11pt;letter-spacing:3px;text-transform:uppercase;color:' +
-      ((TSIQ.brand && TSIQ.brand.color) || '#8a6d3b') + '">' +
+      readableAccentText(safeBrandColor()) + '">' +
       esc(firmName) + '</div></div>' +
       strategyPage(strategy).replace('<div class="page">', '<div>') +
       '<div class="disclaimer">This overview is educational and describes a strategy in general terms. ' +
@@ -184,22 +182,14 @@ TSIQ.render = TSIQ.render || {};
       'documentation requirements with you.</div>' +
       '</div></body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
-    w.focus();
-    setTimeout(function () { w.print(); }, 400);
+    TSIQ.render.openWindow(html, { print: true });
   };
 
   /**
    * data: { clientName, firmName, baseline, scenarios: [{label, result, strategies:[strategyObj]}], years }
    */
   TSIQ.render.clientReport = function (data) {
-    var best = data.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, data.scenarios[0]);
+    var best = TSIQ.bestScenario(data.scenarios);
     var firstYearSavings = data.baseline.years[0].totalBurden - best.result.years[0].totalBurden;
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
@@ -248,12 +238,6 @@ TSIQ.render = TSIQ.render || {};
 
       '</body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
-    w.focus();
-    setTimeout(function () { w.print(); }, 400);
+    TSIQ.render.openWindow(html, { print: true });
   };
 })();

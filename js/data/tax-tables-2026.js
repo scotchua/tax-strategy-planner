@@ -194,3 +194,11 @@ TSIQ.fmt = {
     return (n * 100).toFixed(dp === undefined ? 1 : dp) + '%';
   }
 };
+
+// Shared HTML-escaping helper — lives here (not in a renderer file) so every
+// consumer (app.js, all four renderers) has no load-order dependency on
+// which renderer happens to load first.
+TSIQ.esc = function (s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+};

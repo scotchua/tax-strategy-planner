@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: '§179D Energy-Efficient Commercial Building Deduction',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 58,
+  modeled: true,
 
   advisor: {
     summary:

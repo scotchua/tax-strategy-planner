@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Short-Term Rental Strategy',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 53,
+  modeled: true,
 
   advisor: {
     summary:

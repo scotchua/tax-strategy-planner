@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Hiring Children Under 18',
   category: 'Payroll & Family',
   applyOrder: 31,
+  modeled: true,
 
   advisor: {
     summary:

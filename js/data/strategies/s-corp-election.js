@@ -9,6 +9,7 @@ TSIQ.strategyModules.push({
   name: 'S Corporation Election',
   category: 'Entity Structure',
   applyOrder: 10, // restructures income first; PTET and others compose after
+  modeled: true,
 
   advisor: {
     summary:

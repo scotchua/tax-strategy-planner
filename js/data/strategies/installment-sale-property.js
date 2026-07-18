@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Installment Sale (Property Dispositions)',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 55,
+  modeled: true,
 
   advisor: {
     summary:

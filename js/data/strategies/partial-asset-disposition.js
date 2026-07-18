@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Partial Asset Disposition on Renovations',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 57,
+  modeled: true,
 
   advisor: {
     summary:

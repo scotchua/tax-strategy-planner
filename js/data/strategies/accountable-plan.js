@@ -9,6 +9,7 @@ TSIQ.strategyModules.push({
   name: 'Accountable Plan',
   category: 'Business Expenses',
   applyOrder: 40,
+  modeled: true,
 
   advisor: {
     summary:

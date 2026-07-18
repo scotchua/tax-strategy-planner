@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Solo 401(k)',
   category: 'Retirement',
   applyOrder: 61,
+  modeled: true,
 
   advisor: {
     summary:

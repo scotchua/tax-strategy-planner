@@ -76,7 +76,7 @@ TSIQ.render = TSIQ.render || {};
   };
 
   TSIQ.render.openDeck = function (title, slidesHtml) {
-    var brandColor = safeBrandColor('#8a6d3b');
+    var brandColor = safeBrandColor(TSIQ.DEFAULT_BRAND_COLOR);
     var accentVar = ':root{--deck-accent:color-mix(in srgb, ' + brandColor + ' 55%, #f5e9c9)}';
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<title>' + esc(title) + '</title>' +
@@ -85,12 +85,7 @@ TSIQ.render = TSIQ.render || {};
       '<div class="nav"><span class="counter"></span>' +
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + DECK_JS + '<\/script></body></html>';
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
-    w.focus();
+    TSIQ.render.openWindow(html);
   };
 
   /* ================= firm-style 1920×1080 presentation deck =============== */
@@ -190,9 +185,7 @@ TSIQ.render = TSIQ.render || {};
   /** data: { clientName, firmName, profile, baseline, scenarios, years, growthRate } */
   TSIQ.render.slideshow = function (data) {
     var year = TSIQ.TABLES_2026.taxYear;
-    var best = data.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, data.scenarios[0]);
+    var best = TSIQ.bestScenario(data.scenarios);
     var baseR = data.baseline.years[0];
     var planR = best.result.years[0];
     var b0 = baseR.totalBurden;
@@ -212,21 +205,13 @@ TSIQ.render = TSIQ.render || {};
     // Incremental first-year savings per strategy (best scenario, in order)
     var stepSavings = {};
     if (data.profile && best.selections) {
-      var ordered = best.selections.slice().sort(function (a, b) {
-        return a.strategy.applyOrder - b.strategy.applyOrder;
-      });
-      var running = [], prevBurden = b0;
-      ordered.forEach(function (sel) {
-        running.push(sel);
-        var r = TSIQ.computeScenario(data.profile, running, data.years, data.growthRate);
-        stepSavings[sel.strategy.id] = prevBurden - r.years[0].totalBurden;
-        prevBurden = r.years[0].totalBurden;
-      });
+      TSIQ.incrementalSavings(data.profile, best.selections, data.years, data.growthRate, b0)
+        .forEach(function (step) { stepSavings[step.strategy.id] = step.incremental; });
     }
 
     var brand = TSIQ.brand || {};
-    var brandColorRaw = safeBrandColor('#8a6d3b');
-    var gold = (brandColorRaw === '#8a6d3b') ? '#C9962A' : brandColorRaw;
+    var brandColorRaw = safeBrandColor(TSIQ.DEFAULT_BRAND_COLOR);
+    var gold = (brandColorRaw === TSIQ.DEFAULT_BRAND_COLOR) ? '#C9962A' : brandColorRaw;
     var firmName = data.firmName || brand.name || 'Your Firm';
     var logoImg = safeBrandLogoImg('max-height:56px;max-width:220px');
     var fsLabel = TSIQ.FILING_STATUS_LABELS[(data.profile && data.profile.filingStatus) || 'mfj'];
@@ -384,13 +369,12 @@ TSIQ.render = TSIQ.render || {};
           '<span class="check">&#10003;</span>' +
           '<span style="font-size:22px;line-height:1.55;color:var(--ink-soft)">' + esc(b) + '</span></li>';
       }).join('');
-      var nameParts = s.name.length > 22 ? s.name : s.name; // display as-is; CSS wraps
       slides += '<section class="slide s-white"><div class="slide-pad">' +
         '<div style="display:flex;gap:90px;flex:1">' +
         '<div style="flex:0 0 540px;display:flex;flex-direction:column;justify-content:center">' +
         '<div class="num-index anim" style="font-size:150px">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</div>' +
         '<div class="kicker no-rule anim" style="margin:18px 0 18px">Strategy ' + (['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten'][i + 1] || (i + 1)) + '</div>' +
-        '<h2 class="display anim" style="font-size:62px;line-height:1.05">' + esc(nameParts) + '</h2>' +
+        '<h2 class="display anim" style="font-size:62px;line-height:1.05">' + esc(s.name) + '</h2>' +
         '<div class="anim-2" style="margin-top:46px;background:var(--cream);border-left:4px solid var(--gold);border-radius:12px;padding:30px 34px">' +
         '<div style="font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);margin-bottom:10px">' + calloutLabel + '</div>' +
         calloutValue + '</div></div>' +
@@ -474,11 +458,6 @@ TSIQ.render = TSIQ.render || {};
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + STAGE_JS + '<\/script></body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
-    w.focus();
+    TSIQ.render.openWindow(html);
   };
 })();

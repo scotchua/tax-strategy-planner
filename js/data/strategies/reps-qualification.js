@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Real Estate Professional Status (REPS)',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 53,
+  modeled: true,
 
   advisor: {
     summary:

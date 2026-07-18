@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Cost Segregation Study',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 50,
+  modeled: true,
 
   advisor: {
     summary:

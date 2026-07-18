@@ -23,28 +23,14 @@ TSIQ.render = TSIQ.render || {};
    */
   TSIQ.render.pitchDeck = function (data) {
     // Pitch is built on the best scenario (lowest total burden).
-    var best = data.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, data.scenarios[0]);
+    var best = TSIQ.bestScenario(data.scenarios);
 
     var baseYr1 = data.baseline.years[0].totalBurden;
     var firstYearSavings = baseYr1 - best.result.years[0].totalBurden;
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
     // Incremental first-year savings per strategy, added in applyOrder.
-    var ordered = best.selections.slice().sort(function (a, b) {
-      return a.strategy.applyOrder - b.strategy.applyOrder;
-    });
-    var steps = [], runningSel = [], prevBurden = baseYr1;
-    ordered.forEach(function (sel) {
-      runningSel.push(sel);
-      var r = TSIQ.computeScenario(data.profile, runningSel, data.years, data.growthRate);
-      steps.push({
-        strategy: sel.strategy,
-        incremental: prevBurden - r.years[0].totalBurden
-      });
-      prevBurden = r.years[0].totalBurden;
-    });
+    var steps = TSIQ.incrementalSavings(data.profile, best.selections, data.years, data.growthRate, baseYr1);
 
     var fees = data.fees || { planning: 0, annual: 0 };
     var totalFees = fees.planning + fees.annual * data.years;

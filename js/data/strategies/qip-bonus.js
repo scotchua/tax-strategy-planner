@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Qualified Improvement Property (QIP) Bonus',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 58,
+  modeled: true,
 
   advisor: {
     summary:

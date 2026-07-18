@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Bonus Depreciation Election (and Opt-Out Analysis)',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 51,
+  modeled: true,
 
   advisor: {
     summary:

@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Self-Employed Health Insurance Optimization',
   category: 'Health & Fringe',
   applyOrder: 76,
+  modeled: true,
 
   advisor: {
     summary:

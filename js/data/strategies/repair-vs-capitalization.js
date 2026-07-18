@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Repair vs. Capitalization (Tangible Property Regs)',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 58,
+  modeled: true,
 
   advisor: {
     summary:

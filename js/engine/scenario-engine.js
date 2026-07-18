@@ -75,4 +75,38 @@ window.TSIQ = window.TSIQ || {};
   TSIQ.computeBaseline = function (baseProfile, years, growthRate) {
     return TSIQ.computeScenario(baseProfile, [], years, growthRate);
   };
+
+  /**
+   * The scenario with the lowest total burden — the "with plan" figures in
+   * every output (app.js results panel, client PDF, slideshow, pitch deck)
+   * come from whichever scenario this picks. Shared so the four call sites
+   * can't drift out of sync with each other.
+   */
+  TSIQ.bestScenario = function (scenarios) {
+    return scenarios.reduce(function (a, b) {
+      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
+    }, scenarios[0]);
+  };
+
+  /**
+   * Incremental first-year savings per strategy, added one at a time in
+   * applyOrder — used by the pitch deck (per-strategy reveal slides) and
+   * the client slideshow (per-strategy savings callouts). Returns an
+   * ordered array; each caller derives whatever shape it needs (a map
+   * keyed by strategy id, etc.) from that.
+   */
+  TSIQ.incrementalSavings = function (baseProfile, selections, years, growthRate, startingBurden) {
+    var ordered = selections.slice().sort(function (a, b) {
+      return a.strategy.applyOrder - b.strategy.applyOrder;
+    });
+    var steps = [], running = [], prevBurden = startingBurden;
+    ordered.forEach(function (sel) {
+      running.push(sel);
+      var r = TSIQ.computeScenario(baseProfile, running, years, growthRate);
+      var burden = r.years[0].totalBurden;
+      steps.push({ strategy: sel.strategy, incremental: prevBurden - burden });
+      prevBurden = burden;
+    });
+    return steps;
+  };
 })();

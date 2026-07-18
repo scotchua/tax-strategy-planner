@@ -14,6 +14,7 @@ TSIQ.strategyModules.push({
   // company, etc.) so the PTET base reflects the FINAL K-1 income, not a
   // stale pre-deduction figure.
   applyOrder: 88,
+  modeled: true,
 
   advisor: {
     summary:

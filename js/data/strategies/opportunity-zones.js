@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Opportunity Zone Investment',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 54,
+  modeled: true,
 
   advisor: {
     summary:

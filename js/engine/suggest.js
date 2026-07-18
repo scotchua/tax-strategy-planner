@@ -12,7 +12,8 @@ TSIQ.suggestStrategies = function (profile) {
   TSIQ.STRATEGIES.forEach(function (s) {
     if (typeof s.suggest !== 'function') return;
     var r = null;
-    try { r = s.suggest(profile); } catch (e) { /* a bad rule never blocks the list */ }
+    try { r = s.suggest(profile); }
+    catch (e) { console.warn('suggest() failed for ' + s.id + ' — a bad rule never blocks the list', e); }
     if (r && r.reason) out.push({ id: s.id, reason: r.reason, params: r.params });
   });
   return out;

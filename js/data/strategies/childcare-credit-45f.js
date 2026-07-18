@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Employer-Provided Childcare Credit (§45F)',
   category: 'Credits & Incentives',
   applyOrder: 83,
+  modeled: true,
 
   advisor: {
     summary:

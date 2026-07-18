@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Adding Spouse to Payroll',
   category: 'Payroll & Family',
   applyOrder: 32,
+  modeled: true,
 
   advisor: {
     summary:

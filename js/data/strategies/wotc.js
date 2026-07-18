@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Work Opportunity Tax Credit',
   category: 'Credits & Incentives',
   applyOrder: 82,
+  modeled: true,
 
   advisor: {
     summary:

@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'ICHRA',
   category: 'Health & Fringe',
   applyOrder: 74,
+  modeled: true,
 
   advisor: {
     summary:

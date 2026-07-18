@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Section 179 Expensing',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 52,
+  modeled: true,
 
   advisor: {
     summary:

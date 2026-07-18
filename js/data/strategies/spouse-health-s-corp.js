@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'S-Corp 2% Shareholder Health Insurance',
   category: 'Payroll & Family',
   applyOrder: 37,
+  modeled: true,
 
   advisor: {
     summary:

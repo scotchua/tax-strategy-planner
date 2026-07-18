@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: '1031 Like-Kind Exchange',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 54,
+  modeled: true,
 
   advisor: {
     summary:

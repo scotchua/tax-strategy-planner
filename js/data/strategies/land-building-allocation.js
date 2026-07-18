@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   name: 'Land vs. Building Basis Allocation',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 57,
+  modeled: true,
 
   advisor: {
     summary:

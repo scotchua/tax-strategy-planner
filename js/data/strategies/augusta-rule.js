@@ -9,6 +9,7 @@ TSIQ.strategyModules.push({
   name: 'Augusta Rule (§280A(g))',
   category: 'Business Expenses',
   applyOrder: 30,
+  modeled: true,
 
   advisor: {
     summary:
