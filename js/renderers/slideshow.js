@@ -17,6 +17,18 @@ TSIQ.render = TSIQ.render || {};
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
 
+  // Sink-side validation/escaping for brand fields — defense-in-depth on
+  // top of the brand-settings load/save validation in app.js (sanitizeBrand).
+  function safeBrandColor(fallback) {
+    var color = TSIQ.brand && TSIQ.brand.color;
+    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : fallback;
+  }
+  function safeBrandLogoImg(style) {
+    var logo = TSIQ.brand && TSIQ.brand.logo;
+    if (typeof logo !== 'string' || !/^data:image\/(png|jpe?g|gif|webp);base64,/.test(logo)) return '';
+    return '<img src="' + esc(logo) + '" style="' + style + '" alt="">';
+  }
+
   /* ------------------- minimal dark shell (pitch deck) ------------------- */
   var DECK_CSS = '' +
     '*{box-sizing:border-box;margin:0;padding:0}' +
@@ -60,14 +72,11 @@ TSIQ.render = TSIQ.render || {};
     'show(0);';
 
   TSIQ.render.deckLogo = function () {
-    var logo = TSIQ.brand && TSIQ.brand.logo;
-    return logo
-      ? '<img src="' + logo + '" style="max-height:9vh;max-width:30vw;margin-bottom:3vh" alt="">'
-      : '';
+    return safeBrandLogoImg('max-height:9vh;max-width:30vw;margin-bottom:3vh');
   };
 
   TSIQ.render.openDeck = function (title, slidesHtml) {
-    var brandColor = (TSIQ.brand && TSIQ.brand.color) || '#8a6d3b';
+    var brandColor = safeBrandColor('#8a6d3b');
     var accentVar = ':root{--deck-accent:color-mix(in srgb, ' + brandColor + ' 55%, #f5e9c9)}';
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<title>' + esc(title) + '</title>' +
@@ -80,6 +89,7 @@ TSIQ.render = TSIQ.render || {};
     if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
     w.document.write(html);
     w.document.close();
+    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
     w.focus();
   };
 
@@ -205,10 +215,10 @@ TSIQ.render = TSIQ.render || {};
     }
 
     var brand = TSIQ.brand || {};
-    var gold = (!brand.color || brand.color === '#8a6d3b') ? '#C9962A' : brand.color;
+    var brandColorRaw = safeBrandColor('#8a6d3b');
+    var gold = (brandColorRaw === '#8a6d3b') ? '#C9962A' : brandColorRaw;
     var firmName = data.firmName || brand.name || 'Your Firm';
-    var logoImg = brand.logo
-      ? '<img src="' + brand.logo + '" style="max-height:56px;max-width:220px" alt="">' : '';
+    var logoImg = safeBrandLogoImg('max-height:56px;max-width:220px');
     var fsLabel = TSIQ.FILING_STATUS_LABELS[(data.profile && data.profile.filingStatus) || 'mfj'];
 
     /* ------------------------------ 1 · title ----------------------------- */
@@ -458,6 +468,7 @@ TSIQ.render = TSIQ.render || {};
     if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
     w.document.write(html);
     w.document.close();
+    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
     w.focus();
   };
 })();

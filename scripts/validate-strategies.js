@@ -42,6 +42,9 @@ TSIQ.STRATEGIES.forEach(function (s) {
   REQUIRED.forEach(function (k) { if (s[k] === undefined) errs.push('missing ' + k); });
   if (seenIds[s.id]) errs.push('DUPLICATE id');
   seenIds[s.id] = true;
+  if (typeof s.id !== 'string' || !/^[a-z0-9-]+$/.test(s.id)) {
+    errs.push('id must be kebab-case [a-z0-9-] — got ' + JSON.stringify(s.id));
+  }
   if (s.advisor) ADVISOR_KEYS.forEach(function (k) {
     if (s.advisor[k] === undefined || (Array.isArray(s.advisor[k]) && !s.advisor[k].length))
       errs.push('advisor.' + k + ' missing/empty');

@@ -42,16 +42,20 @@ TSIQ.render = TSIQ.render || {};
   function scenarioLabel(sc) { return sc.label; }
 
   // Brand-aware print CSS + logo block (Brand Settings flow through here).
+  // Sink-side validation/escaping — defense-in-depth on top of the
+  // brand-settings load/save validation in app.js (sanitizeBrand).
+  function safeBrandColor() {
+    var color = TSIQ.brand && TSIQ.brand.color;
+    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : '#8a6d3b';
+  }
   function brandCss() {
-    var color = (TSIQ.brand && TSIQ.brand.color) || '#8a6d3b';
-    return REPORT_CSS.split('#8a6d3b').join(color);
+    return REPORT_CSS.split('#8a6d3b').join(safeBrandColor());
   }
   function brandLogoBlock(marginBottom) {
     var logo = TSIQ.brand && TSIQ.brand.logo;
-    return logo
-      ? '<img src="' + logo + '" style="max-height:64px;max-width:220px;display:block;margin:0 auto ' +
-        (marginBottom || '18px') + '" alt="">'
-      : '';
+    if (typeof logo !== 'string' || !/^data:image\/(png|jpe?g|gif|webp);base64,/.test(logo)) return '';
+    return '<img src="' + esc(logo) + '" style="max-height:64px;max-width:220px;display:block;margin:0 auto ' +
+      (marginBottom || '18px') + '" alt="">';
   }
 
   function comparisonTable(baseline, scenarios) {
@@ -159,6 +163,7 @@ TSIQ.render = TSIQ.render || {};
     if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
     w.document.write(html);
     w.document.close();
+    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
     w.focus();
     setTimeout(function () { w.print(); }, 400);
   };
@@ -222,6 +227,7 @@ TSIQ.render = TSIQ.render || {};
     if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
     w.document.write(html);
     w.document.close();
+    try { w.opener = null; } catch (e) { /* some browsers make this read-only; harmless */ }
     w.focus();
     setTimeout(function () { w.print(); }, 400);
   };

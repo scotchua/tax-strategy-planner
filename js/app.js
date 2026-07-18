@@ -9,13 +9,118 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var lastRun = null; // cache of the latest computation for the renderers
+  var resultsStale = false;   // form changed since lastRun was computed
+  var formDirty = false;      // unsaved changes exist (beforeunload + import-confirm gate)
+  var autosaveTimer = null;
+  var FORM_DEFAULTS = null;   // captured once at load; used to reset the form on import
+  var SESSION_KEY = 'tsiq-session';
+
+  function toFiniteNumber(v) {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string' && v.trim() !== '') {
+      var n = Number(v.replace(/,/g, ''));
+      if (isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  function markResultsStale() {
+    if (!lastRun || resultsStale) return;
+    resultsStale = true;
+    $('results-section').classList.add('stale');
+    var banner = $('stale-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'stale-banner';
+      banner.className = 'stale-banner';
+      banner.textContent = 'Inputs changed — re-run the comparison to update these numbers.';
+      $('results').parentNode.insertBefore(banner, $('results'));
+    }
+    ['btn-pdf', 'btn-slides', 'btn-pitch'].forEach(function (id) { if ($(id)) $(id).disabled = true; });
+  }
+
+  function clearResultsStale() {
+    resultsStale = false;
+    $('results-section').classList.remove('stale');
+    var banner = $('stale-banner');
+    if (banner) banner.parentNode.removeChild(banner);
+    ['btn-pdf', 'btn-slides', 'btn-pitch'].forEach(function (id) { if ($(id)) $(id).disabled = false; });
+  }
+
+  function scheduleAutosave() {
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(function () {
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(serializeState())); }
+      catch (e) { /* storage full/unavailable — autosave is best-effort */ }
+    }, 800);
+  }
+
+  // Ignore changes inside the Results panel (e.g. pitch-deck fee inputs) —
+  // those don't affect the comparison itself, so they shouldn't gate the
+  // PDF/slideshow buttons or trigger the unsaved-changes warning.
+  function markFormChanged(e) {
+    if (e.target && e.target.closest && e.target.closest('#results-section')) return;
+    formDirty = true;
+    markResultsStale();
+    scheduleAutosave();
+  }
+
+  function captureFormDefaults() {
+    FORM_DEFAULTS = { profile: {}, checkboxes: {} };
+    PROFILE_FIELD_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) FORM_DEFAULTS.profile[id] = el.value;
+    });
+    PROFILE_CHECKBOX_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) FORM_DEFAULTS.checkboxes[id] = el.checked;
+    });
+  }
+
+  // Resets Section 1 + both scenario builders to their as-loaded defaults —
+  // used before importing a client file so a field the incoming file doesn't
+  // mention can't silently inherit whatever the PREVIOUS client left behind.
+  function resetClientForm() {
+    $('clientName').value = '';
+    if (FORM_DEFAULTS) {
+      PROFILE_FIELD_IDS.forEach(function (id) {
+        var el = $(id);
+        if (el && FORM_DEFAULTS.profile[id] !== undefined) el.value = FORM_DEFAULTS.profile[id];
+      });
+      PROFILE_CHECKBOX_IDS.forEach(function (id) {
+        var el = $(id);
+        if (el && FORM_DEFAULTS.checkboxes[id] !== undefined) el.checked = FORM_DEFAULTS.checkboxes[id];
+      });
+    }
+    ['sc2', 'sc3'].forEach(function (scKey) {
+      TSIQ.STRATEGIES.forEach(function (s) {
+        var box = $(scKey + '-' + s.id);
+        if (box && box.checked) box.click();
+      });
+    });
+  }
 
   /* ------------------- brand / white-label settings ---------------------- */
   var DEFAULT_BRAND = { name: 'Your Firm', color: '#8a6d3b', logo: '' };
 
+  // Validate shape/format rather than trusting localStorage blindly — on
+  // file://, all local HTML files share one origin's localStorage, so any
+  // other local file the advisor ever opens could plant a payload here that
+  // would otherwise detonate in every generated client document.
+  function sanitizeBrand(b) {
+    var out = Object.assign({}, DEFAULT_BRAND);
+    if (b && typeof b.name === 'string' && b.name.trim()) out.name = b.name.slice(0, 120);
+    if (b && typeof b.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(b.color)) out.color = b.color;
+    if (b && typeof b.logo === 'string' &&
+        /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(b.logo)) {
+      out.logo = b.logo;
+    }
+    return out;
+  }
+
   function loadBrand() {
     try {
-      return Object.assign({}, DEFAULT_BRAND, JSON.parse(localStorage.getItem('tsiq-brand') || '{}'));
+      return sanitizeBrand(JSON.parse(localStorage.getItem('tsiq-brand') || '{}'));
     } catch (e) { return Object.assign({}, DEFAULT_BRAND); }
   }
 
@@ -66,11 +171,15 @@
       reader.readAsDataURL(file);
     });
     $('brand-save').addEventListener('click', function () {
-      var b = {
+      var b = sanitizeBrand({
         name: $('brand-name-input').value.trim() || DEFAULT_BRAND.name,
         color: $('brand-color-input').value || DEFAULT_BRAND.color,
         logo: pendingLogo || ''
-      };
+      });
+      if (pendingLogo && !b.logo) {
+        alert('That logo file couldn\'t be saved — use a PNG, JPEG, GIF, or WebP image.');
+        return;
+      }
       try { localStorage.setItem('tsiq-brand', JSON.stringify(b)); }
       catch (e) { alert('Logo image is too large to save — try a smaller file (under ~2MB).'); return; }
       applyBrand(b);
@@ -106,7 +215,7 @@
   }
 
   function card(s) {
-    return '<div class="strategy-card" data-id="' + s.id + '" data-search="' +
+    return '<div class="strategy-card" data-id="' + esc(s.id) + '" data-search="' +
       esc((s.name + ' ' + s.category + ' ' + s.advisor.summary).toLowerCase()) + '">' +
       '<span class="category-badge">' + esc(s.category) + '</span>' +
       (s.modeled === false ? '<span class="advisory-badge">Advisory</span>' : '') +
@@ -162,17 +271,18 @@
   /* ------------------------ scenario builders UI ------------------------- */
   function paramInput(scKey, strategy, inp) {
     var id = scKey + '-' + strategy.id + '-' + inp.key;
-    var label = '<label for="' + id + '">' + esc(inp.label) + '</label>';
+    var label = '<label for="' + esc(id) + '">' + esc(inp.label) + '</label>';
     if (inp.type === 'select') {
-      return '<div class="param">' + label + '<select id="' + id + '">' +
+      return '<div class="param">' + label + '<select id="' + esc(id) + '">' +
         inp.options.map(function (o) {
           return '<option value="' + esc(o.value) + '"' +
             (o.value === inp.default ? ' selected' : '') + '>' + esc(o.label) + '</option>';
         }).join('') + '</select></div>';
     }
     return '<div class="param">' + label +
-      '<input id="' + id + '" type="number" value="' + inp.default + '"' +
-      (inp.max !== undefined ? ' max="' + inp.max + '"' : '') + '></div>';
+      '<input id="' + esc(id) + '" type="number" value="' + esc(inp.default) + '" min="' +
+      esc(inp.min !== undefined ? inp.min : 0) + '"' +
+      (inp.max !== undefined ? ' max="' + esc(inp.max) + '"' : '') + '></div>';
   }
 
   function buildScenarioPicker(scKey, hostId) {
@@ -182,11 +292,11 @@
         ' <span class="count">(' + inCat.length + ')</span></summary>' +
         inCat.map(function (s) {
           return '<div class="strategy-pick">' +
-            '<label class="pick-label"><input type="checkbox" id="' + scKey + '-' + s.id + '"> ' +
+            '<label class="pick-label"><input type="checkbox" id="' + esc(scKey + '-' + s.id) + '"> ' +
             esc(s.name) +
             (s.modeled === false ? ' <span class="advisory-badge" title="Included in plan documents; does not change scenario math">Advisory</span>' : '') +
             '</label>' +
-            '<div class="params" id="' + scKey + '-' + s.id + '-params" style="display:none">' +
+            '<div class="params" id="' + esc(scKey + '-' + s.id + '-params') + '" style="display:none">' +
             s.inputs.map(function (inp) { return paramInput(scKey, s, inp); }).join('') +
             '</div></div>';
         }).join('') + '</details>';
@@ -205,7 +315,13 @@
       var params = {};
       s.inputs.forEach(function (inp) {
         var el = $(scKey + '-' + s.id + '-' + inp.key);
-        params[inp.key] = (inp.type === 'select') ? el.value : parseFloat(el.value) || 0;
+        if (inp.type === 'select') {
+          params[inp.key] = el.value;
+        } else {
+          var v = parseFloat(el.value) || 0;
+          var floor = inp.min !== undefined ? inp.min : 0;
+          params[inp.key] = Math.max(floor, v);
+        }
       });
       out.push({ strategy: s, params: params });
     });
@@ -418,9 +534,34 @@
     });
   }
 
+  // Returns a list of human-readable field labels for any number input in
+  // Section 1 the browser flagged as badInput (e.g. "1,200,000" or "450k")
+  // — these silently parse to 0 via parseFloat and must not run un-flagged.
+  function findInvalidInputs() {
+    var invalid = [];
+    var inputs = document.querySelectorAll('#tab-builder input[type=number]');
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      el.classList.remove('invalid');
+      if (el.validity && el.validity.badInput) {
+        el.classList.add('invalid');
+        var label = document.querySelector('label[for="' + el.id + '"]');
+        invalid.push(label ? label.textContent : el.id);
+      }
+    }
+    return invalid;
+  }
+
   function compute() {
+    var invalid = findInvalidInputs();
+    if (invalid.length) {
+      alert('These fields have a value the browser can\'t read as a number — fix them ' +
+        'before running the comparison:\n\n' + invalid.join('\n'));
+      return;
+    }
     var profile = readProfile();
-    var years = Math.max(1, Math.round(num('years'))) || 10;
+    var rawYears = Math.round(num('years'));
+    var years = (rawYears >= 1) ? Math.min(rawYears, 30) : 10;
     var growthRate = num('growthPct') / 100;
 
     var scenarios = [];
@@ -456,32 +597,107 @@
       years: years,
       growthRate: growthRate
     };
+    clearResultsStale();
     renderResults(lastRun);
     $('results-section').scrollIntoView({ behavior: 'smooth' });
   }
 
   /* --------------------- client file import / export --------------------- */
-  // Format documented in docs/client-file-format.md (tsiq-client-v1).
+  // Format documented in docs/client-file-format.md (tsiq-client-v1). Also
+  // used as the autosave/restore payload (SESSION_KEY) — same serialize/
+  // apply pair, so the two stay consistent.
   var PROFILE_FIELD_IDS = ['filingStatus', 'wages', 'scheduleCNet', 'passthroughK1',
     'entityW2Wages', 'rentalNet', 'ltcg', 'qualDiv', 'interest', 'otherIncome',
     'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized',
     'kidsCTC', 'otherDeps', 'age65Count', 'fedWithholding', 'fedEstimates',
     'stateWithholding', 'stateEstimates', 'stateRatePct', 'years', 'growthPct'];
   var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive'];
+  var VALID_FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];
 
-  function exportClientFile() {
+  // Carried through from the last .tsiq.json import (e.g. a Claude review
+  // workflow file) so a subsequent Export doesn't silently drop it.
+  var lastImportedExtras = null;
+
+  function serializeState() {
     var data = { format: 'tsiq-client-v1', clientName: $('clientName').value || 'Client', profile: {} };
     PROFILE_FIELD_IDS.forEach(function (id) {
       var el = $(id);
       data.profile[id] = (el.type === 'number') ? (parseFloat(el.value) || 0) : el.value;
     });
     PROFILE_CHECKBOX_IDS.forEach(function (id) { data.profile[id] = $(id).checked; });
+    data.scenarios = ['sc2', 'sc3'].map(function (scKey) {
+      return {
+        key: scKey,
+        label: $(scKey + '-label') ? $(scKey + '-label').value : '',
+        strategies: readSelections(scKey).map(function (sel) {
+          return { id: sel.strategy.id, params: sel.params };
+        })
+      };
+    });
+    data.fees = { planning: num('feePlanning'), annual: num('feeAnnual') };
+    if (lastImportedExtras) {
+      if (lastImportedExtras.suggestedStrategies) data.suggestedStrategies = lastImportedExtras.suggestedStrategies;
+      if (lastImportedExtras.notes) data.notes = lastImportedExtras.notes;
+    }
+    return data;
+  }
+
+  // Applies a tsiq-client-v1 payload to the form. Validates as it goes —
+  // an invalid filingStatus or non-numeric field is skipped (left at
+  // whatever the form currently holds) rather than corrupting the form or
+  // silently coercing to 0. Returns the list of field ids that were skipped.
+  function applyState(data) {
+    var skipped = [];
+    if (data.clientName) $('clientName').value = data.clientName;
+    var p = data.profile || {};
+    PROFILE_FIELD_IDS.forEach(function (id) {
+      if (p[id] === undefined) return;
+      var el = $(id);
+      if (!el) return;
+      if (id === 'filingStatus') {
+        if (VALID_FILING_STATUSES.indexOf(p[id]) === -1) { skipped.push(id); return; }
+        el.value = p[id];
+      } else if (el.tagName === 'SELECT') {
+        el.value = String(p[id]);
+      } else {
+        var n = toFiniteNumber(p[id]);
+        if (n === null) { skipped.push(id); } else { el.value = n; }
+      }
+    });
+    PROFILE_CHECKBOX_IDS.forEach(function (id) { if (p[id] !== undefined) $(id).checked = !!p[id]; });
+    (data.scenarios || []).forEach(function (sc) {
+      if (!sc || !sc.key) return;
+      if ($(sc.key + '-label') && sc.label) $(sc.key + '-label').value = sc.label;
+      (sc.strategies || []).forEach(function (s) {
+        var box = $(sc.key + '-' + s.id);
+        if (!box) { skipped.push(sc.key + ':' + s.id); return; }
+        if (!box.checked) box.click();
+        Object.keys(s.params || {}).forEach(function (k) {
+          var input = $(sc.key + '-' + s.id + '-' + k);
+          if (input) input.value = s.params[k];
+        });
+        var det = box.closest('details'); if (det) det.open = true;
+      });
+    });
+    if (data.fees) {
+      var fp = toFiniteNumber(data.fees.planning), fa = toFiniteNumber(data.fees.annual);
+      if ($('feePlanning') && fp !== null) $('feePlanning').value = fp;
+      if ($('feeAnnual') && fa !== null) $('feeAnnual').value = fa;
+    }
+    lastImportedExtras = (data.suggestedStrategies || data.notes)
+      ? { suggestedStrategies: data.suggestedStrategies, notes: data.notes } : null;
+    return skipped;
+  }
+
+  function exportClientFile() {
+    var data = serializeState();
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = (data.clientName.replace(/[^a-z0-9 _-]/gi, '') || 'client') + '.tsiq.json';
     a.click();
     URL.revokeObjectURL(a.href);
+    formDirty = false;
   }
 
   function renderSuggestions(suggestions, notes) {
@@ -525,6 +741,16 @@
     }
   }
 
+  function clearLastRunForNewClient() {
+    lastRun = null;
+    resultsStale = false;
+    $('output-actions').style.display = 'none';
+    $('results').innerHTML = '<p class="hint">Run a comparison to see the baseline vs. scenario columns and the multi-year projection.</p>';
+    var banner = $('stale-banner');
+    if (banner) banner.parentNode.removeChild(banner);
+    $('results-section').classList.remove('stale');
+  }
+
   function importClientFile(file) {
     var reader = new FileReader();
     reader.onload = function () {
@@ -534,11 +760,22 @@
       if (!data || data.format !== 'tsiq-client-v1') {
         alert('Not a recognized client file (expected format "tsiq-client-v1").'); return;
       }
-      if (data.clientName) $('clientName').value = data.clientName;
-      var p = data.profile || {};
-      PROFILE_FIELD_IDS.forEach(function (id) { if (p[id] !== undefined) $(id).value = p[id]; });
-      PROFILE_CHECKBOX_IDS.forEach(function (id) { if (p[id] !== undefined) $(id).checked = !!p[id]; });
-      renderSuggestions(data.suggestedStrategies, data.notes);
+      if (formDirty && !confirm('Replace the current client data (' +
+          ($('clientName').value || 'unsaved entries') + ') with "' +
+          (data.clientName || 'this file') + '"?')) {
+        return;
+      }
+      // Reset first so a field this file doesn't mention can't silently
+      // inherit whatever the PREVIOUS client left in the form.
+      resetClientForm();
+      var skipped = applyState(data);
+      clearLastRunForNewClient();
+      var notes = (data.notes || []).slice();
+      if (skipped.length) {
+        notes.push('Could not read ' + skipped.length + ' field(s) from this file — left at default: ' + skipped.join(', '));
+      }
+      renderSuggestions(data.suggestedStrategies, notes);
+      formDirty = false;
       window.scrollTo(0, 0);
     };
     reader.readAsText(file);
@@ -606,6 +843,15 @@
     $('pdf-review-body').innerHTML = html;
     $('pdf-review-modal').classList.add('open');
     $('pdfr-apply').addEventListener('click', function () {
+      // Reset every field this importer is responsible for FIRST (except
+      // filingStatus, which has no safe "reset" value) — a field this PDF
+      // doesn't have (e.g. no Schedule E on this return) must not silently
+      // keep a PRIOR client's number.
+      Object.keys(PDF_FIELD_LABELS).forEach(function (k) {
+        if (k === 'filingStatus') return;
+        var target = $(k);
+        if (target) target.value = 0;
+      });
       Object.keys(PDF_FIELD_LABELS).forEach(function (k) {
         var el = $('pdfr-' + k);
         if (!el) return;
@@ -613,6 +859,8 @@
         if (target) target.value = el.value;
       });
       $('pdf-review-modal').classList.remove('open');
+      clearLastRunForNewClient();
+      formDirty = true;
       runSuggestions(result.warnings);
       window.scrollTo(0, 0);
     });
@@ -659,6 +907,28 @@
     buildLibrary();
     buildScenarioPicker('sc2', 'sc2-strategies');
     buildScenarioPicker('sc3', 'sc3-strategies');
+    captureFormDefaults();
+
+    $('tab-builder').addEventListener('input', markFormChanged);
+    $('tab-builder').addEventListener('change', markFormChanged);
+    window.addEventListener('beforeunload', function (e) {
+      if (formDirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    try {
+      var draftRaw = localStorage.getItem(SESSION_KEY);
+      if (draftRaw) {
+        var draft = JSON.parse(draftRaw);
+        var draftName = (draft && draft.clientName) || 'a client';
+        if (confirm('Restore your unsaved session for ' + draftName +
+            '? Choose Cancel to start fresh (this discards the saved draft).')) {
+          applyState(draft);
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      }
+    } catch (e) { /* corrupt draft — leave the form as-is */ }
+
     $('compute').addEventListener('click', compute);
     $('btn-pdf').addEventListener('click', function () {
       if (lastRun) TSIQ.render.clientReport(lastRun);

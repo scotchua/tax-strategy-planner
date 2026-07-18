@@ -71,6 +71,18 @@ window.TSIQ = window.TSIQ || {};
     var lib = (typeof pdfjsLib !== 'undefined') ? pdfjsLib : window.pdfjsLib;
     if (!lib) return Promise.reject(new Error('pdf.js not loaded'));
 
+    // SECURITY-LOAD-BEARING: the vendored pdf.js (js/vendor/, v3.11.174) is
+    // within the CVE-2024-4367 vulnerable range (arbitrary JS execution via a
+    // crafted PDF's FontMatrix). isEvalSupported:false is the mitigation —
+    // do not remove it in a refactor. Upgrading to a fixed build (>= 4.2.67)
+    // is NOT a drop-in swap: pdf.js dropped classic-script/UMD builds at that
+    // version in favor of ES-module-only builds, and ES modules fail to load
+    // under file:// in Chromium (a CORS error) — which is this app's primary,
+    // documented launch mode (see "Add Desktop Shortcut.cmd"). An upgrade
+    // needs either a build/bundling step (contrary to this project's no-build
+    // design) or dropping file:// support, and real PDF fixtures to confirm
+    // getTextContent()'s output shape is unchanged — tracked as a deferred,
+    // deliberate decision, not an oversight.
     return lib.getDocument({ data: data, isEvalSupported: false, useWorkerFetch: false })
       .promise.then(function (doc) {
         var pagePromises = [];
