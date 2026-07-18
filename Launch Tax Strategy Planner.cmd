@@ -8,6 +8,9 @@ rem ============================================================================
 setlocal
 set "DIR=%~dp0"
 set "URL=file:///%DIR:\=/%index.html"
+rem Folder paths with spaces (e.g. "C:\Users\Jane Smith\Desktop\...") produce
+rem an invalid file:// URL unless spaces are percent-encoded.
+set "URL=%URL: =%%20%"
 
 set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
 if not exist "%EDGE%" set "EDGE=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"

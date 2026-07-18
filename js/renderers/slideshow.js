@@ -56,6 +56,7 @@ TSIQ.render = TSIQ.render || {};
     '.nav button{background:#1e2a38;color:#eef2f7;border:1px solid #3a4a5c;border-radius:6px;padding:10px 18px;font-size:16px;cursor:pointer}' +
     '.nav button:hover{background:#2c3a4a}' +
     '.counter{color:#7a8a9c;font-size:14px;margin-right:8px}' +
+    '.version-stamp{color:#4a5a6c;font-size:11px;margin-right:8px}' +
     '.progress{position:fixed;top:0;left:0;height:3px;background:var(--deck-accent);transition:width .3s}';
 
   var DECK_JS = '' +
@@ -82,7 +83,7 @@ TSIQ.render = TSIQ.render || {};
       '<title>' + esc(title) + '</title>' +
       '<style>' + accentVar + DECK_CSS + '</style></head><body>' +
       '<div class="progress"></div>' + slidesHtml +
-      '<div class="nav"><span class="counter"></span>' +
+      '<div class="nav"><span class="counter"></span><span class="version-stamp">v' + esc(TSIQ.APP_VERSION) + '</span>' +
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + DECK_JS + '<\/script></body></html>';
     TSIQ.render.openWindow(html);
@@ -146,6 +147,7 @@ TSIQ.render = TSIQ.render || {};
     '.nav button{background:rgba(255,255,255,.08);color:#eef2f7;border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:10px 18px;font-size:16px;cursor:pointer}' +
     '.nav button:hover{background:rgba(255,255,255,.18)}' +
     '.counter{color:#7e8c98;font-size:14px;margin-right:8px;font-family:var(--mono)}' +
+    '.version-stamp{color:#4a5560;font-size:11px;margin-right:8px;font-family:var(--mono)}' +
     '.progress{position:fixed;top:0;left:0;height:4px;background:var(--gold);transition:width .3s;z-index:10}';
   }
 
@@ -454,7 +456,7 @@ TSIQ.render = TSIQ.render || {};
       '<style>' + stageCss(gold) + '</style></head><body>' +
       '<div class="progress"></div>' +
       '<div id="stage">' + slides + '</div>' +
-      '<div class="nav"><span class="counter"></span>' +
+      '<div class="nav"><span class="counter"></span><span class="version-stamp">v' + esc(TSIQ.APP_VERSION) + '</span>' +
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + STAGE_JS + '<\/script></body></html>';
 

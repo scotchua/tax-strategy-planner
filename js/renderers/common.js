@@ -10,6 +10,11 @@ TSIQ.render = TSIQ.render || {};
 // independently hardcoded as the literal '#8a6d3b' in several renderer files.
 TSIQ.DEFAULT_BRAND_COLOR = '#8a6d3b';
 
+// Bump on every release; see CHANGELOG.md. Printed in report/deck footers so
+// a client-facing PDF or slideshow can be traced back to the app version
+// that produced it.
+TSIQ.APP_VERSION = '1.0.0';
+
 /**
  * Opens a new window, writes `html` into it, and severs window.opener (the
  * popup would otherwise keep same-origin access back into the app). When

@@ -234,6 +234,7 @@ TSIQ.render = TSIQ.render || {};
       'planning illustrations, not a guarantee of results or a substitute for the advice engagement. State tax is ' +
       'modeled at a flat effective rate. Strategies require proper implementation and documentation to deliver ' +
       'the benefits shown. ' + esc(data.firmName) + ' will confirm final figures on your filed returns.</div>' +
+      '<div class="disclaimer">Tax Strategy Planner v' + TSIQ.APP_VERSION + '</div>' +
       '</div>' +
 
       '</body></html>';
