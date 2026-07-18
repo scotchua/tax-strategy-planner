@@ -27,7 +27,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## EN. Engine modeling gaps that skew estimates
 
-- [ ] **EN1. Model §86 Social Security taxability (provisional income).** (M/high)
+- [x] **EN1. Model §86 Social Security taxability (provisional income).** (M/high)
   Retiree returns currently lump taxable SS into `otherIncome` (via the PDF parser) with no
   provisional-income mechanics, so strategies that change other income (Roth conversions,
   harvesting, QCDs) never show their knock-on SS-taxability effect — a first-order term for
@@ -37,13 +37,13 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   Verified example of the current distortion: MFJ, $55k SS + $50k IRA income, a $30k harvest drags
   ~$12.3k of additional SS into income — ~$1,470 of real federal cost the model shows as $0.
 
-- [ ] **EN2. Model Roth conversion income as a first-class engine line.** (S/high)
+- [x] **EN2. Model Roth conversion income as a first-class engine line.** (S/high)
   Add a `rothConversionIncome` profile field (generic name so both IRA and in-plan conversions
   share it): ordinary income in `totalIncome`, **excluded from the NIIT `nii` base**
   (§1411(c)(5) — conversions raise MAGI but are not investment income; folding into `otherIncome`
   would tax them 3.8% wrongly once EN4 lands). This is the enabling change for LB1/SF3.
 
-- [ ] **EN3. Promote §461(l) from quantified warning to actual disallowance + NOL carryforward.** (M/high)
+- [x] **EN3. Promote §461(l) from quantified warning to actual disallowance + NOL carryforward.** (M/high)
   The engine already computes `excessBusinessLoss` and the scenario `state` already carries
   multi-year memory. Do the real thing: add the excess back to income in the disallowance year
   (use `rentalAllowed`, not raw `rentalNet`, so §469 suspension applies first), carry it as
@@ -53,26 +53,26 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   phase-outs in the disallowance year — that is real law, not a side effect to suppress.
   Update CLAUDE.md's not-modeled list + the fine print together (repo convention).
 
-- [ ] **EN4. Give short-term gains a first-class field.** (M/medium)
+- [x] **EN4. Give short-term gains a first-class field.** (M/medium)
   The parser isolates ST gains but dumps them into `otherIncome`, which is excluded from the
   NIIT base — so ST gains escape the 3.8% NIIT entirely and are indistinguishable from pensions.
   Add `shortTermGains`: ordinary-rate, in `nii`, netted with `ltcg` before the §1211(b) clamp.
 
-- [ ] **EN5. Carry negative QBI forward per §199A(c)(2).** (S/medium)
+- [x] **EN5. Carry negative QBI forward per §199A(c)(2).** (S/medium)
   `qbiDeduction()` floors combined QBI at 0 — a loss year's negative QBI simply evaporates
   instead of reducing next year's QBI. Net `state.qbiLossCarryover` before flooring; the
   carryover-reduced figure must also drive the OBBBA $400-minimum floor check
   (`qbiIncome >= qm.floorQBI`), or a loss-carryover year could wrongly claim the minimum.
   Update the not-modeled list + fine print together.
 
-- [ ] **EN6. Model the refundable ACTC instead of hard-capping CTC at tax liability.** (S/medium)
+- [x] **EN6. Model the refundable ACTC instead of hard-capping CTC at tax liability.** (S/medium)
   Any scenario that drives income tax to zero silently forfeits the whole CTC today. Add
   `ctc.refundableMax: 1700` (2026, Rev. Proc. 2025-32 §4.05) and compute
   `refundable = min(unusedCTC, 1700 × kidsCTC, 0.15 × max(0, earnedIncome − 2500))`.
   The §24(d)(1)(B)(ii) 3+-child alternative (SS/SE tax over EIC) is acceptable to skip for this
   clientele — note the omission in the tables comment.
 
-- [ ] **EN7. IRMAA cliff warnings for Medicare-age clients (notes, not tax math).** (S/medium)
+- [x] **EN7. IRMAA cliff warnings for Medicare-age clients (notes, not tax math).** (S/medium)
   Follow the §461(l)-note precedent: when `age65Count > 0` (or a "Medicare within 2 years"
   checkbox — IRMAA looks back two years, so it bites 63+ today), compare each projection year's
   MAGI against the 2026 IRMAA tiers (first tier above $109,000 single / $218,000 MFJ; a
@@ -96,7 +96,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   `ptetDeducted` already established). 2026 nonconforming examples: CA, PA, AL, MS.
   (Do **not** cite NJ — it enacted §1202 conformity effective for tax years beginning 1/1/2026.)
 
-- [ ] **SF3. Promote in-plan Roth conversion to modeled.** (M/high)
+- [x] **SF3. Promote in-plan Roth conversion to modeled.** (M/high)
   Its own note tells the advisor to size conversions against the scenario's final bracket
   picture — exactly what the engine can compute. Inputs `conversionAmount` (currency, **not**
   `grows` — a one-time conversion must not compound) + `conversionYear` (1-based, clamped to the
@@ -130,7 +130,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## LB. Library additions
 
-- [ ] **LB1. Modeled Roth conversion (bracket-fill) strategy.** (M/high)
+- [x] **LB1. Modeled Roth conversion (bracket-fill) strategy.** (M/high)
   Both existing Roth entries are advisory and punt on sizing. Add `roth-conversion.js`
   (modeled) on top of EN2: `conversionAmount`, `yearsToConvert`/every-year toggle. The scenario
   column then shows the TRUE all-in cost including every cascade already modeled (SALT
@@ -278,7 +278,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## PJ. Projection realism
 
-- [ ] **PJ1. Sunset-aware law schedule.** (M/high)
+- [x] **PJ1. Sunset-aware law schedule.** (M/high)
   The tables' own comment says the senior deduction is temporary (2025–2028), yet the engine
   grants it in projection years 2029–2035 — enacted law, not an unknowable CPI assumption, so
   it's different in kind from the disclosed no-indexing simplification. Add
@@ -288,13 +288,13 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   makes PTET *more* valuable in later years; verify the exact schedule in P.L. 119-21 §70120
   before hardcoding). Note the change in the fine print.
 
-- [ ] **PJ2. One-time vs recurring income.** (S/high)
+- [x] **PJ2. One-time vs recurring income.** (S/high)
   `grownProfile()` grows and replays every income field — a one-time $400k year-1 gain becomes
   ~$1M+ of phantom gains across a 10-year baseline, and the gain-targeted strategies (OZ, CRT,
   harvesting, installment sales) are priced against that fiction. Add a "one-time (this year
   only)" checkbox for `ltcg` and `otherIncome`; zero them in years 2+ when set.
 
-- [ ] **PJ3. Per-stream growth for deductions.** (S/medium)
+- [x] **PJ3. Per-stream growth for deductions.** (S/medium)
   Growing `mortgageInterest` at the income rate is directionally wrong (amortizing interest
   declines); by year 10 it's 34%+ overstated, distorting the itemize-vs-standard flip and the
   AGI-keyed phase-outs. Split GROWTH_FIELDS: hold itemized-deduction fields flat (or a separate
@@ -306,7 +306,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   ±2pts, state rate ±1pt — "which assumption moves this answer" is the honest framing for a
   single-rate 10-year compound.
 
-- [ ] **PJ5. WOTC default to one claimed year.** (S/low)
+- [x] **PJ5. WOTC default to one claimed year.** (S/low)
   wotc.js banks the credit for every projection year (the recurring-hires assumption *is*
   disclosed in a note, and the authorization-lapse warning exists — this is a default-honesty
   tweak, not a bug). Add a "years claimed" input defaulting to 1, matching how energy-credits

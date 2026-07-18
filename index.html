@@ -89,14 +89,18 @@
         <div class="field"><label for="ownerWages">Client&rsquo;s own W-2 wages from that entity</label><input id="ownerWages" type="number" value="0"></div>
         <div class="field"><label for="rentalNet">Rental net income / (loss)</label><input id="rentalNet" type="number" value="0"></div>
         <div class="field"><label for="ltcg">Long-term capital gains</label><input id="ltcg" type="number" value="0"></div>
+        <div class="field"><label for="shortTermGains">Short-term capital gains</label><input id="shortTermGains" type="number" value="0"></div>
         <div class="field"><label for="qualDiv">Qualified dividends</label><input id="qualDiv" type="number" value="0"></div>
         <div class="field"><label for="interest">Interest / ordinary dividends</label><input id="interest" type="number" value="0"></div>
         <div class="field"><label for="otherIncome">Other income</label><input id="otherIncome" type="number" value="0"></div>
+        <div class="field"><label for="ssBenefitsGross">Social Security benefits (gross)</label><input id="ssBenefitsGross" type="number" value="0"></div>
       </div>
       <div class="check-row">
         <span class="field check"><input id="isSSTB" type="checkbox"><label for="isSSTB">Specified service business (SSTB)</label></span>
         <span class="field check"><input id="rentalLossesUsable" type="checkbox" checked><label for="rentalLossesUsable" title="&sect;469: current-year losses usable via passive income elsewhere or the $25k active-participation allowance">Rental losses currently usable this year (&sect;469)</label></span>
         <span class="field check"><input id="reNonPassive" type="checkbox"><label for="reNonPassive" title="&sect;1411: real estate professional or material participation makes rental a non-passive trade or business, excluding it from Net Investment Income Tax. Independent of the &sect;469 usability checkbox above.">Real estate professional / non-passive (excludes rental from NIIT)</label></span>
+        <span class="field check"><input id="ltcgOneTime" type="checkbox"><label for="ltcgOneTime" title="Check if the capital gains entered above are a one-time event (e.g. a business or stock sale) rather than a recurring investment return — the projection will show it in year 1 only instead of growing and replaying it every year.">Capital gains are one-time (not recurring)</label></span>
+        <span class="field check"><input id="otherIncomeOneTime" type="checkbox"><label for="otherIncomeOneTime" title="Check if the other income entered above is a one-time item rather than a recurring income stream — the projection will show it in year 1 only.">Other income is one-time (not recurring)</label></span>
       </div>
     </div>
 
@@ -349,6 +353,7 @@
 <script src="js/data/strategies/reasonable-comp-study.js"></script>
 <script src="js/data/strategies/repair-vs-capitalization.js"></script>
 <script src="js/data/strategies/reps-qualification.js"></script>
+<script src="js/data/strategies/roth-conversion.js"></script>
 <script src="js/data/strategies/roth-vs-traditional-split.js"></script>
 <script src="js/data/strategies/s-corp-election.js"></script>
 <script src="js/data/strategies/safe-harbor-401k.js"></script>

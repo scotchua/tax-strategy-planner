@@ -194,7 +194,13 @@ TSIQ.STRATEGIES.forEach(function (s) {
         var r = TSIQ.computeScenario(sp.profile, [{ strategy: s, params: params }], 3, 0.03);
         r.years.forEach(function (y, i) {
           if (!isFinite(y.totalBurden)) errs.push(sp.name + '/x' + scale + ' year ' + i + ' totalBurden is ' + y.totalBurden);
-          if (y.totalBurden < 0) errs.push(sp.name + '/x' + scale + ' year ' + i + ' NEGATIVE total burden');
+          // A modest negative total burden is legitimate real-world behavior
+          // now that the refundable Additional Child Tax Credit is modeled
+          // (a low/no-tax family with qualifying children gets a genuine net
+          // refund) — only flag a magnitude far beyond what any credit in
+          // this app could plausibly produce, which would indicate a
+          // runaway formula bug instead.
+          if (y.totalBurden < -50000) errs.push(sp.name + '/x' + scale + ' year ' + i + ' implausibly NEGATIVE total burden (' + y.totalBurden + ') — check for a runaway credit or deduction');
         });
         var base = TSIQ.computeBaseline(sp.profile, 3, 0.03);
         if (s.modeled === false) {

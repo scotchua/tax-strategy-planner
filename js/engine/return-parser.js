@@ -32,7 +32,11 @@ window.TSIQ = window.TSIQ || {};
     { key: 'dividends',    re: /Qualified dividends/i, two: true },
     { key: 'iraTaxable',   re: /IRA distributions/i, pairedAB: true },
     { key: 'pension',      re: /Pensions and annuities/i, pairedAB: true },
-    { key: 'socialSec',    re: /Social security benefits/i, pairedAB: true },
+    // two: true also captures the gross ("a") benefit amount into v2 — the
+    // engine computes §86 taxability itself from the gross figure rather
+    // than trusting the return's already-computed taxable "b" amount as an
+    // opaque income lump (see fields.ssBenefitsGross below).
+    { key: 'socialSec',    re: /Social security benefits/i, pairedAB: true, two: true },
     { key: 'capGain',      re: /Capital gain or \(loss\)\. Attach Schedule D/i },
     { key: 'totalIncome',  re: /This is your total income/i },
     { key: 'agi',          re: /This is your adjusted gross income/i },
@@ -210,6 +214,7 @@ window.TSIQ = window.TSIQ || {};
                 // taxable amount is blank (nontaxable rollover, SS below the
                 // taxability floor, tax-exempt-only interest, etc.).
                 pairedABWarnings.push(a.key + ':' + near[0].v);
+                v2 = near[0].v; // the lone survivor IS the gross ("a") value
                 v = 0;
               }
               raw[a.key] = { found: true, page: pd.page, v: v, v2: v2 };
@@ -230,10 +235,15 @@ window.TSIQ = window.TSIQ || {};
         };
         pairedABWarnings.forEach(function (w) {
           var parts = w.split(':'), key = parts[0], grossAmt = parts[1];
+          // Social Security is handled separately below (the gross amount
+          // drives the engine's own §86 computation, so "imported as $0
+          // taxable" would be misleading here — a real, possibly nonzero,
+          // taxable amount gets computed from ssBenefitsGross).
+          if (key === 'socialSec') return;
           warnings.push('Found a gross ' + (PAIRED_AB_LABELS[key] || key) + ' amount of ' +
             TSIQ.fmt.usd(grossAmt) + ' with no taxable amount printed alongside it — imported ' +
             'as $0 taxable. Verify against the return (a fully nontaxable rollover, exempt ' +
-            'interest, or Social Security below the taxability floor would all look like this).');
+            'interest, or a blank line would look like this).');
         });
 
         fields.wages = val('wages1z') !== null ? val('wages1z') : (val('wages1a') || 0);
@@ -311,13 +321,28 @@ window.TSIQ = window.TSIQ || {};
           }
         }
 
-        // Retirement/SS taxable amounts → other income.
-        var retire = (val('iraTaxable') || 0) + (val('pension') || 0) + (val('socialSec') || 0);
+        // IRA/pension taxable amounts → other income (unlike Social Security
+        // below, the app has no separate mechanism for these — the return's
+        // own already-computed taxable amount is used as-is).
+        var retire = (val('iraTaxable') || 0) + (val('pension') || 0);
         if (retire) {
           fields.otherIncome = (fields.otherIncome || 0) + retire;
-          warnings.push(TSIQ.fmt.usd(retire) + ' of IRA/pension/Social Security taxable income ' +
-            'was mapped to Other Income (note: the engine will not apply SS-taxability ' +
-            'phase-ins to it — review if Social Security is a large share).');
+          warnings.push(TSIQ.fmt.usd(retire) + ' of IRA/pension taxable income was mapped to ' +
+            'Other Income.');
+        }
+
+        // Social Security: import the GROSS benefit amount into its own
+        // field — the engine computes §86 taxability itself (provisional
+        // income against the never-indexed statutory thresholds) rather
+        // than trusting the return's already-computed taxable amount as an
+        // opaque, frozen number that can't respond when a strategy changes
+        // the client's other income.
+        var ssGross = raw.socialSec ? raw.socialSec.v2 : undefined;
+        if (ssGross !== undefined && ssGross !== null && ssGross !== 0) {
+          fields.ssBenefitsGross = ssGross;
+          warnings.push(TSIQ.fmt.usd(ssGross) + ' of gross Social Security benefits found — ' +
+            'imported for the engine to compute taxability itself rather than trusting the ' +
+            'return\'s already-computed taxable amount.');
         }
 
         // Itemized detail (present only when Schedule A exists).

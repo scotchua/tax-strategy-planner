@@ -445,8 +445,10 @@
       rentalNet: num('rentalNet'),
       rentalLossesUsable: $('rentalLossesUsable').checked,
       reNonPassive: $('reNonPassive').checked,
-      ltcg: num('ltcg'), qualDiv: num('qualDiv'),
+      ltcg: num('ltcg'), shortTermGains: num('shortTermGains'), qualDiv: num('qualDiv'),
       interest: num('interest'), otherIncome: num('otherIncome'),
+      ssBenefitsGross: num('ssBenefitsGross'),
+      ltcgOneTime: $('ltcgOneTime').checked, otherIncomeOneTime: $('otherIncomeOneTime').checked,
       propertyTax: num('propertyTax'), mortgageInterest: num('mortgageInterest'),
       charitable: num('charitable'), otherItemized: num('otherItemized'),
       kidsCTC: num('kidsCTC'), otherDeps: num('otherDeps'),
@@ -791,12 +793,14 @@
   // used as the autosave/restore payload (SESSION_KEY) — same serialize/
   // apply pair, so the two stay consistent.
   var PROFILE_FIELD_IDS = ['filingStatus', 'wages', 'scheduleCNet', 'passthroughK1',
-    'entityW2Wages', 'ownerWages', 'rentalNet', 'ltcg', 'qualDiv', 'interest', 'otherIncome',
+    'entityW2Wages', 'ownerWages', 'rentalNet', 'ltcg', 'shortTermGains', 'qualDiv',
+    'interest', 'otherIncome', 'ssBenefitsGross',
     'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized',
     'kidsCTC', 'otherDeps', 'age65Count', 'fedWithholding', 'fedEstimates',
     'stateWithholding', 'stateEstimates', 'priorYearTax', 'priorYearAGI',
     'stateRatePct', 'years', 'growthPct'];
-  var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive'];
+  var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive',
+    'ltcgOneTime', 'otherIncomeOneTime'];
   var VALID_FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];
 
   // Carried through from the last .tsiq.json import (e.g. a Claude review
@@ -985,7 +989,8 @@
     interest: 'Interest / ordinary dividends', qualDiv: 'Qualified dividends',
     scheduleCNet: 'Schedule C net profit', rentalNet: 'Rental net income / (loss)',
     passthroughK1: 'K-1 ordinary income', ltcg: 'Long-term capital gains',
-    otherIncome: 'Other income', propertyTax: 'Property tax',
+    otherIncome: 'Other income', ssBenefitsGross: 'Social Security benefits (gross)',
+    propertyTax: 'Property tax',
     mortgageInterest: 'Mortgage interest', charitable: 'Charitable contributions'
   };
 
@@ -1032,11 +1037,18 @@
 
     // Tie-out: sum the parsed income fields and compare against the
     // return's own line 9 (total income) — the one arithmetic check that
-    // would catch most mis-mapped or dropped values automatically.
+    // would catch most mis-mapped or dropped values automatically. Social
+    // Security is imported as a GROSS amount (see EN1/ssBenefitsGross), so
+    // its taxable share is ESTIMATED here the same way the engine will
+    // compute it, rather than the return's own (possibly prior-year-law)
+    // taxable figure — a source of small, expected drift when SS is present.
     if (ref.totalIncome !== null && ref.totalIncome !== undefined) {
-      var parsedTotal = (f.wages || 0) + (f.interest || 0) + (f.qualDiv || 0) +
+      var parsedTotalExclSS = (f.wages || 0) + (f.interest || 0) + (f.qualDiv || 0) +
         (f.scheduleCNet || 0) + (f.rentalNet || 0) + (f.passthroughK1 || 0) +
         (f.ltcg || 0) + (f.otherIncome || 0);
+      var estimatedSSTaxable = TSIQ.taxableSocialSecurity(
+        f.filingStatus, parsedTotalExclSS, f.ssBenefitsGross || 0);
+      var parsedTotal = parsedTotalExclSS + estimatedSSTaxable;
       var diff = parsedTotal - ref.totalIncome;
       var tieTolerance = 2;
       html += '<div style="margin-bottom:16px;padding:10px 14px;border-radius:8px;' +
@@ -1046,7 +1058,10 @@
         'Parsed income total: ' + usd(parsedTotal) + ' vs. return line 9: ' + usd(ref.totalIncome) +
         ' — difference ' + usd(diff) +
         (Math.abs(diff) > tieTolerance
-          ? ' (does not tie — some income (adjustments, un-mapped Schedule 1 lines) may not be captured; review before applying)'
+          ? ' (does not tie — some income (adjustments, un-mapped Schedule 1 lines) may not be ' +
+            'captured; review before applying' +
+            (f.ssBenefitsGross ? '; Social Security\'s taxable share here is an ESTIMATE and can ' +
+              'differ slightly from the return\'s own figure' : '') + ')'
           : ' (ties out)') +
         '</div>';
     }

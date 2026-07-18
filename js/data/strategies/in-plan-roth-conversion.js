@@ -11,8 +11,11 @@ TSIQ.strategyModules.push({
   id: 'in-plan-roth-conversion',
   name: 'In-Plan Roth Conversions',
   category: 'Retirement',
-  applyOrder: 69,
-  modeled: false,
+  // Runs after every deduction strategy (DB/cash-balance funding, cost seg,
+  // PTET at 88, etc.) so the conversion stacks on the FINAL bracket picture
+  // those deductions create — the whole point of bracket-fill timing.
+  applyOrder: 90,
+  modeled: true,
 
   advisor: {
     summary:
@@ -112,15 +115,44 @@ TSIQ.strategyModules.push({
     ]
   },
 
-  inputs: [],
+  inputs: [
+    { key: 'conversionAmount', label: 'Amount converted', type: 'currency', default: 50000 },
+    { key: 'conversionYear', label: 'Projection year to convert in (1 = this year)', type: 'number', default: 1, min: 1 }
+  ],
 
   appliesTo: function (profile) {
     return true;
   },
 
+  /**
+   * Adds the converted amount as ordinary income (via profile.rothConversionIncome
+   * — tax-engine.js includes it in totalIncome but EXCLUDES it from the NIIT
+   * base per §1411(c)(5): a conversion raises MAGI but is not investment
+   * income) in exactly the chosen projection year. conversionYear is
+   * 1-based to match the year columns the advisor sees (year 1 == yearIndex
+   * 0); a value beyond the projection horizon simply never matches and the
+   * strategy quietly does nothing that run. Deliberately NOT `grows: true`
+   * — a chosen one-time conversion amount must not compound with the
+   * income growth rate.
+   */
   apply: function (profile, params, yearIndex, state) {
-    return { profile: profile, notes: yearIndex === 0
-      ? ['Advisory strategy — appears in the plan documents but does not change the scenario math. Conversions ADD taxable income by design; size them against the scenario\'s final bracket picture (ideally in a year another strategy creates a large deduction).']
-      : [] };
+    var p = Object.assign({}, profile);
+    var notes = [];
+    var targetYearIndex = Math.max(1, Math.round(params.conversionYear || 1)) - 1;
+    if (yearIndex !== targetYearIndex) return { profile: p, notes: notes };
+
+    var amt = Math.max(0, params.conversionAmount || 0);
+    p.rothConversionIncome = (p.rothConversionIncome || 0) + amt;
+    notes.push(TSIQ.fmt.usd(amt) + ' converted to Roth in projection year ' +
+      (targetYearIndex + 1) + ' — ordinary income this year, excluded from NIIT ' +
+      '(§1411(c)(5)), tax-free growth and no RMDs afterward. Irrevocable once ' +
+      'executed (no recharacterization since TCJA) — size against a near-final ' +
+      'year-end projection, ideally in a year another strategy already creates a ' +
+      'large deduction.');
+    notes.push('Watch the AGI cascade this conversion amount also drives elsewhere ' +
+      'in the scenario: SALT-cap phase-down, QBI phase-in, and (for Medicare-age ' +
+      'clients) IRMAA two years later — the right amount fills brackets net of ' +
+      'those cliffs, not gross.');
+    return { profile: p, notes: notes };
   }
 });

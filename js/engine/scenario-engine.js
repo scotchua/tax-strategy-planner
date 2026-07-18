@@ -7,10 +7,23 @@
 window.TSIQ = window.TSIQ || {};
 
 (function () {
-  // Income fields that grow with the client's assumed growth rate.
+  // Income fields that grow with the client's assumed growth rate. PJ3:
+  // itemized-deduction fields (propertyTax, mortgageInterest, charitable,
+  // otherItemized) are deliberately NOT in this list — mortgage interest on
+  // an amortizing loan actually DECLINES over time, and growing all four at
+  // the income rate previously muted the AGI-keyed SALT-phase-down/§170(p)
+  // charitable-floor effects (numerator and denominator moved together).
+  // They now stay flat at the Section-1 entered value for the whole
+  // projection — see CLAUDE.md / the results fine print.
   var GROWTH_FIELDS = ['wages', 'scheduleCNet', 'passthroughK1', 'rentalNet',
-    'ltcg', 'qualDiv', 'interest', 'otherIncome',
-    'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized'];
+    'ltcg', 'qualDiv', 'interest', 'otherIncome'];
+
+  // PJ2: a one-time capital gain or other-income event (a stock/business
+  // sale, a single bonus) must not be replayed and grown in every later
+  // projection year — that turns a single-year event into phantom recurring
+  // income. The advisor flags the field as one-time (ltcgOneTime/
+  // otherIncomeOneTime checkboxes) and it zeroes out for yearIndex > 0.
+  var ONE_TIME_FIELDS = { ltcg: 'ltcgOneTime', otherIncome: 'otherIncomeOneTime' };
 
   function grownProfile(base, growthRate, yearIndex) {
     var p = Object.assign({}, base);
@@ -18,13 +31,36 @@ window.TSIQ = window.TSIQ || {};
     GROWTH_FIELDS.forEach(function (k) {
       if (typeof p[k] === 'number') p[k] = p[k] * factor;
     });
+    if (yearIndex > 0) {
+      Object.keys(ONE_TIME_FIELDS).forEach(function (k) {
+        if (base[ONE_TIME_FIELDS[k]]) p[k] = 0;
+      });
+    }
     // Withholding/estimates are year-to-date payments for the CURRENT year —
     // they don't apply to projection years 2+.
     if (yearIndex > 0) {
       p.fedWithholding = 0; p.fedEstimates = 0;
       p.stateWithholding = 0; p.stateEstimates = 0;
     }
+    // PJ1: the projected calendar tax year, so the engine can apply
+    // sunset-aware law (e.g. the OBBBA senior deduction and the enhanced
+    // SALT cap both expire on enacted dates within a long projection) rather
+    // than replaying every 2026 provision unchanged for 30 years.
+    p.projTaxYear = TSIQ.TABLES_2026.taxYear + yearIndex;
     return p;
+  }
+
+  // EN7: annual Medicare IRMAA surcharge (Part B+D, per enrollee) for a
+  // given MAGI — see the `irmaa` table comment in tax-tables-2026.js.
+  function irmaaTierSurcharge(fs, magi) {
+    var irmaa = TSIQ.TABLES_2026.irmaa;
+    if (fs === 'mfs') return magi > irmaa.mfsThreshold ? irmaa.mfsSurcharge : 0;
+    var tiers = (fs === 'mfj') ? irmaa.mfjTiers : irmaa.singleTiers; // hoh uses single
+    var surcharge = 0;
+    for (var i = 0; i < tiers.length; i++) {
+      if (magi > tiers[i][0]) surcharge = tiers[i][1]; else break;
+    }
+    return surcharge;
   }
 
   // Opt-in nominal-dollar scaling for currency params flagged `grows: true`
@@ -77,13 +113,29 @@ window.TSIQ = window.TSIQ || {};
       result.taxYear = TSIQ.TABLES_2026.taxYear + y;
       yearResults.push(result);
 
-      // §461(l) is not modeled (no NOL carryforward, no add-back) — quantify
-      // the exposure instead of relying on a generic disclaimer.
+      // §461(l) excess business loss (EN3): now actually disallowed and
+      // carried forward as an NOL (see tax-engine.js) — quantify it anyway
+      // so the advisor can see WHY a loss year's benefit was capped.
       if (result.excessBusinessLoss > 0) {
         allNotes.push('Tax year ' + result.taxYear + ': aggregate business loss exceeds the ' +
-          '§461(l) threshold by ' + TSIQ.fmt.usd(result.excessBusinessLoss) + ' — not modeled ' +
-          'here (no benefit from the excess this year; it is generally carried forward as an ' +
-          'NOL instead). Confirm treatment before relying on this year\'s projected liability.');
+          '§461(l) threshold by ' + TSIQ.fmt.usd(result.excessBusinessLoss) + ' — that excess is ' +
+          'disallowed this year (added back to income) and carried forward as an NOL, usable in ' +
+          'future years up to 80% of that year\'s taxable income before the NOL/QBI deductions.');
+      }
+
+      // IRMAA (EN7): a note only — Medicare premiums, not tax liability.
+      // Flat 2026 CMS tier table applied to every projection year (same
+      // simplification as unindexed brackets elsewhere) against THIS
+      // year's own MAGI (the real 2-year lookback is not modeled).
+      if ((profile.age65Count || 0) > 0) {
+        var irmaaSurcharge = irmaaTierSurcharge(profile.filingStatus, result.agi);
+        if (irmaaSurcharge > 0) {
+          var irmaaTotal = irmaaSurcharge * profile.age65Count;
+          allNotes.push('Tax year ' + result.taxYear + ': MAGI of ' + TSIQ.fmt.usd(result.agi) +
+            ' crosses an IRMAA tier — roughly ' + TSIQ.fmt.usd(irmaaTotal) + '/yr in added Medicare ' +
+            'Part B/D premiums per enrollee, billed two years later (2026 CMS brackets; verify the ' +
+            'brackets in effect for that future year). Not a tax and not included in the totals above.');
+        }
       }
     }
 

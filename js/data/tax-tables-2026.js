@@ -61,11 +61,28 @@ TSIQ.TABLES_2026 = {
     additionalMedicareThreshold: { single: 200000, mfj: 250000, mfs: 125000, hoh: 200000 }
   },
 
+  // §86 Social Security benefit taxability. base1/base2 are the "base
+  // amount"/"adjusted base amount" thresholds — PERMANENT, NEVER indexed
+  // for inflation since enacted (1983/1993). MFS uses $0/$0 UNLESS the
+  // taxpayer lived apart from their spouse the entire year, in which case
+  // the single thresholds apply instead (§86(c)(1)(C)/(2)(C)) — not
+  // modeled as a separate flag here; this app assumes the harsher
+  // living-with-spouse case for any MFS profile (see CLAUDE.md).
+  socialSecurity: {
+    base1: { single: 25000, mfj: 32000, mfs: 0, hoh: 25000 },
+    base2: { single: 34000, mfj: 44000, mfs: 0, hoh: 34000 }
+  },
+
   // Child Tax Credit (§24, as amended by OBBBA): $2,200 per qualifying child
   // (under 17) for 2026, $500 other-dependent credit. Phase-out: $50 per
   // $1,000 (or fraction) of MAGI over the threshold. Refundable portion
-  // ($1,700 ACTC) not modeled in v1 — credit applied as nonrefundable.
+  // (Additional CTC, §24(h)(5)): $1,700 per child for 2026 (Rev. Proc.
+  // 2025-32 §4.05; unchanged from 2025, now inflation-indexed under OBBBA),
+  // limited to 15% of earned income over $2,500. The §24(d)(1)(B)(ii)
+  // alternative for 3+ qualifying children (excess SS/SE tax over EIC) is
+  // NOT modeled — acceptable for this clientele; flag if it ever matters.
   ctc: {
+    refundableMax: 1700,
     perChild: 2200,
     perOtherDependent: 500,
     phaseOutThreshold: { single: 200000, mfj: 400000, mfs: 200000, hoh: 200000 },
@@ -76,6 +93,34 @@ TSIQ.TABLES_2026 = {
   niit: {
     rate: 0.038,
     magiThreshold: { single: 200000, mfj: 250000, mfs: 125000, hoh: 200000 }
+  },
+
+  // Medicare IRMAA surcharge tiers (Part B + Part D combined, PER PERSON per
+  // year). NOT a tax the engine computes — surfaced only as an advisory
+  // materiality note (see scenario-engine.js) when age65Count > 0, since
+  // IRMAA sets Medicare premiums, not federal/state liability. Uses a
+  // 2-year MAGI lookback in reality (this year's MAGI sets the premium TWO
+  // YEARS from now); simplified here to flag each projection year's own
+  // MAGI against this SAME flat 2026 tier table for every year shown (the
+  // existing "2026 dollar thresholds, not inflation-indexed" simplification
+  // — CMS announces each year's brackets separately; there is no fixed
+  // statutory schedule to project forward the way the SALT cap has).
+  // Source: CMS 2026 Medicare Part B/D premium announcement (Nov 2025) —
+  // VERIFY the current-year CMS brackets before relying on this for an
+  // actual premium estimate; this is a planning flag, not a bill.
+  irmaa: {
+    // [MAGI threshold, annual Part B+D surcharge PER Medicare enrollee].
+    singleTiers: [
+      [109000, 1148], [137000, 2885], [171000, 4620], [205000, 6355], [500000, 6936]
+    ],
+    mfjTiers: [
+      [218000, 1148], [274000, 2885], [342000, 4620], [410000, 6355], [750000, 6936]
+    ],
+    // MFS (living with spouse anytime during the year) skips the graduated
+    // tiers entirely: $0 below the first threshold, then jumps straight to
+    // the tier-4 surcharge level (a deliberate anti-income-splitting design).
+    mfsThreshold: 109000,
+    mfsSurcharge: 6355
   },
 
   // §461(l) excess business loss limitation threshold — NOT modeled (the
@@ -92,19 +137,33 @@ TSIQ.TABLES_2026 = {
 
   // SALT cap under OBBBA for 2026: $40,400 cap ($20,200 MFS), phased down by
   // 30% of MAGI over $505,000 ($252,500 MFS), but never below the $10,000 floor.
+  // P.L. 119-21 §70120: the cap and phase-down threshold both grow 1%/year
+  // through 2029, then the ENTIRE enhanced-cap regime sunsets on 1/1/2030 and
+  // reverts to the permanent flat cap in `floor` below with NO income
+  // phase-down at all. Verified schedule: $40,400 (2026) -> $40,804 (2027)
+  // -> $41,212 (2028) -> $41,624 (2029) -> $10,000 flat, no phase-down (2030+).
+  // tax-engine.js's saltCapForYear() applies this using profile.projTaxYear
+  // (set by scenario-engine.js per projection year); direct computeYear()
+  // callers that never set projTaxYear get the 2026 baseline unchanged.
   salt: {
     cap: { single: 40400, mfj: 40400, mfs: 20200, hoh: 40400 },
     floor: { single: 10000, mfj: 10000, mfs: 5000, hoh: 10000 },
     phaseDownStart: { single: 505000, mfj: 505000, mfs: 252500, hoh: 505000 },
-    phaseDownRate: 0.30
+    phaseDownRate: 0.30,
+    enhancedCapGrowthRate: 0.01,
+    enhancedCapSunsetYear: 2029
   },
 
   // OBBBA §70103 "senior deduction": $6,000 per qualifying individual age 65+
   // (2026 figure; indexed 2027+), on top of the regular/aged standard
   // deduction, available whether itemizing or not. Phases out 6% of MAGI
-  // over the threshold. Temporary (2025-2028) per current law.
+  // over the threshold. Temporary (2025-2028) per current law — sunsetTaxYear
+  // below is enforced in tax-engine.js against profile.projTaxYear; this is
+  // enacted-law fidelity, not the unindexed-thresholds simplification
+  // disclosed elsewhere (see CLAUDE.md).
   seniorDeduction: {
     amount: 6000,
+    sunsetTaxYear: 2028,
     magiPhaseOutStart: { single: 75000, mfj: 150000, mfs: 75000, hoh: 75000 },
     phaseOutRate: 0.06
   },
