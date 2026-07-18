@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Health & Fringe',
   applyOrder: 76,
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -12,6 +12,7 @@ TSIQ.strategyModules.push({
   category: 'Income Timing & Character',
   applyOrder: 20,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

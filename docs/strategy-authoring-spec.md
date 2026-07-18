@@ -19,6 +19,7 @@ app.js, other strategies) — your files are picked up by a registry rebuild.
 {
   id, name, category, applyOrder,          // category and applyOrder assigned in your task
   modeled: true|false,                     // false = advisory-only (see below)
+  character: 'permanent'|'timing'|'deferral', // ET2 — see "Timing vs. permanent" below
   advisor: {
     summary,                               // 3-6 sentence technical summary
     mechanics: [...],                      // 4-6 bullets, full technical depth
@@ -89,6 +90,28 @@ apply: function (profile, params, yearIndex, state) {
     : [] };
 }
 ```
+
+## Timing vs. permanent — the `character` field
+
+Every strategy declares `character: 'permanent'|'timing'|'deferral'` (ET2 in
+`IMPROVEMENTS-2.md`) — it drives the timing-vs-permanent split in the
+advisor results table and the client-facing cumulative headline, so get it
+right rather than defaulting to `'permanent'` out of habit:
+
+- **`'permanent'`** — the saved dollar never comes back as future tax. Entity
+  restructuring (SE/FICA savings), credits, exclusions (QSBS, HSA, PTET
+  workaround), Roth conversions (tax paid now, growth never taxed again),
+  fringe benefits.
+- **`'timing'`** — reshuffles WHICH YEAR income/deduction lands; the client's
+  lifetime tax is roughly unchanged, or the strategy has an explicit later-
+  year give-back (see `state.acceleratedDepAccumulated` in
+  cost-segregation.js/bonus-depreciation.js/etc.). Accelerated depreciation,
+  installment sales, §1031/opportunity-zone gain deferral, bracket
+  management, DAF bunching, cash/accrual method changes.
+- **`'deferral'`** — specifically a pre-tax-now/ordinary-income-later
+  mechanism (traditional retirement plan contributions, NQDC) — distinct
+  from `'timing'` in that the deferred amount is earmarked as future
+  RETIREMENT/comp income, not a general future-year tax reshuffle.
 
 ## Suggestion screening — `suggest(profile)`
 

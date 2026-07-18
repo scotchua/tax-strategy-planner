@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'QBI Optimization',
   applyOrder: 22, // after wage optimization sets entity payroll
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

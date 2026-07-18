@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 10, // restructures income first; PTET and others compose after
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

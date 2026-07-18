@@ -12,6 +12,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 65,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

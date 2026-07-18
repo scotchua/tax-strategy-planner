@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 11, // restructures income right after S-corp election in ordering
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

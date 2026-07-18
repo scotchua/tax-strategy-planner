@@ -16,6 +16,7 @@ TSIQ.strategyModules.push({
   // those deductions create — the whole point of bracket-fill timing.
   applyOrder: 90,
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

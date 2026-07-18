@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Credits & Incentives',
   applyOrder: 83,
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 17,
   modeled: false, // advisory-only: the salary it produces is an INPUT to s-corp-election, not its own dollar effect
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

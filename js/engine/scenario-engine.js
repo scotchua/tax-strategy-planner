@@ -171,30 +171,65 @@ window.TSIQ = window.TSIQ || {};
    * every output (app.js results panel, client PDF, slideshow, pitch deck)
    * come from whichever scenario this picks. Shared so the four call sites
    * can't drift out of sync with each other.
+   * ET5: `forcedLabel` (optional) lets the advisor override a near-tie pick
+   * — if it matches a scenario's `.label` exactly, that scenario wins
+   * outright regardless of totalBurden. Every call site accepts and passes
+   * through `data.forcedWinnerLabel` (undefined is a no-op, so this is
+   * fully backward compatible with any caller that omits it).
    */
-  TSIQ.bestScenario = function (scenarios) {
+  TSIQ.bestScenario = function (scenarios, forcedLabel) {
+    if (forcedLabel) {
+      var forced = scenarios.filter(function (sc) { return sc.label === forcedLabel; })[0];
+      if (forced) return forced;
+    }
     return scenarios.reduce(function (a, b) {
       return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
     }, scenarios[0]);
   };
 
   /**
-   * Incremental first-year savings per strategy, added one at a time in
-   * applyOrder — used by the pitch deck (per-strategy reveal slides) and
-   * the client slideshow (per-strategy savings callouts). Returns an
-   * ordered array; each caller derives whatever shape it needs (a map
-   * keyed by strategy id, etc.) from that.
+   * ET5: cumulative-burden margin between the best and second-best
+   * scenario — Infinity when there's nothing to compare against (0 or 1
+   * scenarios). A small margin means the model can't meaningfully rank the
+   * scenarios; the caller decides what "small" means for its context.
    */
-  TSIQ.incrementalSavings = function (baseProfile, selections, years, growthRate, startingBurden) {
+  TSIQ.scenarioMargin = function (scenarios) {
+    if (scenarios.length < 2) return Infinity;
+    var sorted = scenarios.slice().sort(function (a, b) {
+      return a.result.totals.totalBurden - b.result.totals.totalBurden;
+    });
+    return sorted[1].result.totals.totalBurden - sorted[0].result.totals.totalBurden;
+  };
+
+  /**
+   * Incremental first-year (and, if `startingCumulativeBurden` is passed,
+   * cumulative multi-year — ET2) savings per strategy, added one at a time
+   * in applyOrder — used by the pitch deck (per-strategy reveal slides),
+   * the client slideshow (per-strategy savings callouts), and the advisor
+   * per-strategy contribution table (ET1). Returns an ordered array; each
+   * caller derives whatever shape it needs (a map keyed by strategy id,
+   * etc.) from that. `startingCumulativeBurden` is OPTIONAL and backward-
+   * compatible — omit it (as the pitch deck/slideshow do) to get only the
+   * year-1 `incremental` field; pass `run.baseline.totals.totalBurden` to
+   * also get `cumulativeIncremental` per step.
+   */
+  TSIQ.incrementalSavings = function (baseProfile, selections, years, growthRate, startingBurden, startingCumulativeBurden) {
     var ordered = selections.slice().sort(function (a, b) {
       return a.strategy.applyOrder - b.strategy.applyOrder;
     });
     var steps = [], running = [], prevBurden = startingBurden;
+    var trackCumulative = startingCumulativeBurden !== undefined;
+    var prevCum = startingCumulativeBurden;
     ordered.forEach(function (sel) {
       running.push(sel);
       var r = TSIQ.computeScenario(baseProfile, running, years, growthRate);
       var burden = r.years[0].totalBurden;
-      steps.push({ strategy: sel.strategy, incremental: prevBurden - burden });
+      var step = { strategy: sel.strategy, incremental: prevBurden - burden };
+      if (trackCumulative) {
+        step.cumulativeIncremental = prevCum - r.totals.totalBurden;
+        prevCum = r.totals.totalBurden;
+      }
+      steps.push(step);
       prevBurden = burden;
     });
     return steps;

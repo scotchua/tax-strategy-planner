@@ -244,6 +244,19 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
 }
 .results-diff { margin: 8px 0 0; }
 
+/* ET1: per-strategy contribution table zero-effect flag */
+.zero-effect-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700; color: #8a5a00; background: #fdf3dd;
+  border: 1px solid #f0dca6; border-radius: 6px; padding: 2px 8px; margin-left: 6px;
+}
+
+/* ET5: near-tie detection banner + advisor override select */
+.near-tie-banner {
+  font-size: 13px; color: #6b5400; background: #fffaf0; border: 1.5px solid #f0dca6;
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; line-height: 1.5;
+}
+.near-tie-banner select { margin-left: 8px; padding: 4px 8px; border-radius: 6px; border: 1.5px solid #f0dca6; font-family: inherit; }
+
 /* ------------------------------- buttons -------------------------------- */
 .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin: 8px 0 0; }
 button.primary {
@@ -267,6 +280,17 @@ button.secondary:disabled:hover { border-color: var(--line); color: var(--ink); 
 .results-context { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 2px 0 16px; }
 .results-context .rc-client { font-size: 21px; font-weight: 650; letter-spacing: -0.3px; }
 .results-context .rc-meta { font-size: 13px; color: var(--muted); }
+.results-context #btn-calc-trace { margin-left: auto; font-size: 13px; }
+
+/* ET4: calculation-trace popup (see calculationTraceHtml()/traceColumn() in app.js) */
+.trace-cols { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.trace-col { flex: 1 1 280px; min-width: 260px; }
+.trace-col h4 { margin: 0 0 6px; }
+.trace-table td { font-size: 12.5px; padding: 4px 8px; }
+.trace-table tr.trace-group td {
+  font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--accent-text); background: var(--accent-soft); padding-top: 7px; padding-bottom: 7px;
+}
 
 .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 6px 0 26px; }
 @media (max-width: 920px) { .kpi-row { grid-template-columns: 1fr 1fr; } }

@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Payroll & Family',
   applyOrder: 39,
   modeled: false,
+  character: 'deferral', // ET2
 
   advisor: {
     summary:

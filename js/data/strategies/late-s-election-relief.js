@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 15,
   modeled: false, // advisory-only: enables the S-corp election; the math lives in s-corp-election
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

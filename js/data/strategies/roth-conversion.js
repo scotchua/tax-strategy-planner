@@ -21,6 +21,7 @@ TSIQ.strategyModules.push({
   // immaterial — both add to the same rothConversionIncome field).
   applyOrder: 89,
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

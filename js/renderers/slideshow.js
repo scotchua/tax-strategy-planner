@@ -16,6 +16,7 @@ TSIQ.render = TSIQ.render || {};
 (function () {
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
+  var usdApprox = function (n) { return TSIQ.fmt.usdApprox(n); }; // ET7 — headline figures only
 
   // Sink-side validation/escaping for brand fields — defense-in-depth on
   // top of the brand-settings load/save validation in app.js (sanitizeBrand).
@@ -187,7 +188,7 @@ TSIQ.render = TSIQ.render || {};
   /** data: { clientName, firmName, profile, baseline, scenarios, years, growthRate } */
   TSIQ.render.slideshow = function (data) {
     var year = TSIQ.TABLES_2026.taxYear;
-    var best = TSIQ.bestScenario(data.scenarios);
+    var best = TSIQ.bestScenario(data.scenarios, data.forcedWinnerLabel);
     var baseR = data.baseline.years[0];
     var planR = best.result.years[0];
     var b0 = baseR.totalBurden;
@@ -211,11 +212,18 @@ TSIQ.render = TSIQ.render || {};
     // income multiplier) is active.
     var bestProfile = best.profile || data.profile;
 
-    // Incremental first-year savings per strategy (best scenario, in order)
+    // Incremental first-year (and cumulative, ET2) savings per strategy
+    // (best scenario, in order).
     var stepSavings = {};
+    var permanentCum = 0, notPermanentCum = 0;
     if (bestProfile && best.selections) {
-      TSIQ.incrementalSavings(bestProfile, best.selections, data.years, data.growthRate, b0)
-        .forEach(function (step) { stepSavings[step.strategy.id] = step.incremental; });
+      TSIQ.incrementalSavings(bestProfile, best.selections, data.years, data.growthRate,
+        b0, data.baseline.totals.totalBurden)
+        .forEach(function (step) {
+          stepSavings[step.strategy.id] = step.incremental;
+          if ((step.strategy.character || 'permanent') === 'permanent') permanentCum += step.cumulativeIncremental;
+          else notPermanentCum += step.cumulativeIncremental;
+        });
     }
 
     var brand = TSIQ.brand || {};
@@ -404,22 +412,25 @@ TSIQ.render = TSIQ.render || {};
       '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:50px;align-items:center;margin-bottom:auto">' +
       '<div class="card on-dark anim-2" style="padding:50px 54px">' +
       '<div class="pill" style="background:rgba(192,57,43,.2);color:#F2B8B0;margin-bottom:26px">Without changes</div>' +
-      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:var(--on-navy-soft)">' + usd(b0) + '</div>' +
+      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:var(--on-navy-soft)">' + usdApprox(b0) + '</div>' +
       '<div style="margin-top:24px;display:flex;gap:40px;color:var(--on-navy-soft);font-size:19px">' +
       '<span>Federal <b class="mono" style="color:#fff">' + usd(baseR.totalFederal) + '</b></span>' +
       '<span>State <b class="mono" style="color:#fff">' + usd(baseR.totalState) + '</b></span></div></div>' +
       '<div class="anim-3" style="color:var(--gold);font-size:90px;line-height:1">&rarr;</div>' +
       '<div class="anim-3" style="padding:50px 54px;background:var(--green);border-radius:16px;box-shadow:0 18px 50px rgba(15,26,36,.4)">' +
       '<div class="pill" style="background:rgba(255,255,255,.22);color:#fff;margin-bottom:26px">With the plan</div>' +
-      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:#fff">' + usd(planR.totalBurden) + '</div>' +
+      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:#fff">' + usdApprox(planR.totalBurden) + '</div>' +
       '<div style="margin-top:24px;display:flex;gap:40px;color:rgba(255,255,255,.85);font-size:19px">' +
       '<span>Federal <b class="mono" style="color:#fff">' + usd(planR.totalFederal) + '</b></span>' +
       '<span>State <b class="mono" style="color:#fff">' + usd(planR.totalState) + '</b></span></div></div></div>' +
       '<div class="anim-4" style="margin-top:60px;background:var(--gold);border-radius:16px;padding:44px 60px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 18px 50px rgba(15,26,36,.4)">' +
       '<div><div style="font-size:19px;text-transform:uppercase;letter-spacing:.12em;color:var(--navy-700);font-weight:700">Total tax savings in ' + year + '</div>' +
       '<div style="font-size:22px;color:var(--navy-700);margin-top:8px">A <b>' + pctSmaller + '% smaller</b> bill this year &mdash; and ' +
-      '<b>' + usd(cumSavings) + '</b> kept over the next ' + data.years + ' years.</div></div>' +
-      '<div class="mono" style="font-size:128px;font-weight:700;line-height:.9;color:var(--navy)">' + usd(yr1Savings) + '</div></div>' +
+      '<b>' + usd(cumSavings) + '</b> kept over the next ' + data.years + ' years' +
+      (notPermanentCum > 500 ? ' (<b>' + usd(permanentCum) + '</b> permanent, <b>' + usd(notPermanentCum) +
+        '</b> from timing/deferred-tax moves that shift WHEN tax is owed rather than eliminating it)' : '') +
+      '.</div></div>' +
+      '<div class="mono" style="font-size:128px;font-weight:700;line-height:.9;color:var(--navy)">' + usdApprox(yr1Savings) + '</div></div>' +
       '</div>' + foot(firmName, data.clientName) + '</section>';
 
     /* --------------------------- 8 · next steps --------------------------- */

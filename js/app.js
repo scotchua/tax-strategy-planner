@@ -20,6 +20,10 @@
   var autosaveTimer = null;
   var FORM_DEFAULTS = null;   // captured once at load; used to reset the form on import
   var SESSION_KEY = 'tsiq-session';
+  // ET6: the imported PDF's OWN reported summary lines (filed return),
+  // persisted past Apply (previously discarded except the two safe-harbor
+  // fields) so the baseline calibration panel can compare model vs filed.
+  var lastFiledReturnReference = null;
 
   // WF7: bounded undo stack over serializeState()/applyState() — snapshotted
   // just before each of the three destructive bulk operations (client-file
@@ -121,6 +125,7 @@
   // mention can't silently inherit whatever the PREVIOUS client left behind.
   function resetClientForm() {
     $('clientName').value = '';
+    lastFiledReturnReference = null; // ET6: don't carry a prior client's filed-return reference forward
     if (FORM_DEFAULTS) {
       PROFILE_FIELD_IDS.forEach(function (id) {
         var el = $(id);
@@ -824,6 +829,194 @@
     return { effRate: effRate, bizRate: bizRate, ltcgRate: ltcgRate, dedRate: dedRate };
   }
 
+  // ET1/ET2/ET3: per-strategy contribution table — what each strategy in
+  // each scenario actually contributes, in dollars, with a zero-effect
+  // flag, a permanent/timing/deferral character badge, and the order-
+  // dependent-attribution disclosure the code comment used to be the only
+  // place this was written down.
+  var ZERO_EFFECT_THRESHOLD = 50;
+  var CHARACTER_LABELS = { permanent: 'Permanent', timing: 'Timing', deferral: 'Deferral' };
+  function contributionTable(run, baseYr1) {
+    var html = '';
+    run.scenarios.forEach(function (sc) {
+      if (!sc.selections.length) return;
+      var steps = TSIQ.incrementalSavings(sc.profile, sc.selections, run.years, run.growthRate,
+        baseYr1, run.baseline.totals.totalBurden);
+      var permCum = 0, otherCum = 0;
+      var rows = steps.map(function (step) {
+        var character = step.strategy.character || 'permanent';
+        if (character === 'permanent') permCum += step.cumulativeIncremental;
+        else otherCum += step.cumulativeIncremental;
+        var isZero = Math.abs(step.incremental) < ZERO_EFFECT_THRESHOLD &&
+          Math.abs(step.cumulativeIncremental) < ZERO_EFFECT_THRESHOLD;
+        return '<tr>' +
+          '<td>' + esc(step.strategy.name) +
+          (isZero ? ' <span class="zero-effect-badge">No modeled effect for this client — ' +
+            'check parameters or remove before generating client documents</span>' : '') +
+          '</td>' +
+          '<td>' + esc(CHARACTER_LABELS[character] || character) + '</td>' +
+          '<td>' + usd(step.incremental) + '</td>' +
+          '<td>' + usd(step.cumulativeIncremental) + '</td></tr>';
+      }).join('');
+      html += '<h4 style="margin:18px 0 4px">' + esc(sc.label) + ' — per-strategy contribution</h4>' +
+        '<p class="hint" style="margin:0 0 8px">Strategies are added ONE AT A TIME in the order ' +
+        'each actually applies (applyOrder) — the scenario total above is exact regardless of ' +
+        'order, but which specific strategy "gets credit" for a dollar that two strategies both ' +
+        'touch (e.g. two moves both changing AGI) depends on that order. Re-ordering would move ' +
+        'dollars between rows without changing the total.</p>' +
+        '<div class="table-scroll"><table class="results-table"><thead><tr>' +
+        '<th>Strategy</th><th>Character</th><th>Year-1</th><th>' + run.years + '-yr cumulative</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<p class="hint" style="margin:6px 0 16px">' + esc(sc.label) + ' ' + run.years +
+        '-yr split: <strong>' + usd(permCum) + '</strong> permanent savings + <strong>' +
+        usd(otherCum) + '</strong> from timing/deferred-tax moves (shifts WHICH YEAR tax is owed, ' +
+        'or defers ordinary income to a later withdrawal outside this projection, rather than ' +
+        'eliminating it).</p>';
+    });
+    return html;
+  }
+
+  // ET4: calculation-trace popup (audit trail). Pure re-derivation from
+  // fields computeYear already returns (plus the published bracket/LTCG
+  // tables) for DISPLAY only — never a second source of truth for the tax
+  // owed, which always remains r.ordinaryTax/r.capGainsTax/etc. Lets a CPA
+  // tie any number here to their own tax software line by line.
+  function bracketBreakdown(brackets, taxableAmount) {
+    var rows = [];
+    for (var i = 0; i < brackets.length && taxableAmount > brackets[i][0]; i++) {
+      var lower = brackets[i][0], rate = brackets[i][1];
+      var upper = (i + 1 < brackets.length) ? brackets[i + 1][0] : Infinity;
+      var amount = Math.min(taxableAmount, upper) - lower;
+      if (amount <= 0) continue;
+      rows.push({ lower: lower, upper: upper, rate: rate, amount: amount, tax: amount * rate });
+    }
+    return rows;
+  }
+  function ltcgBreakdown(bp, ordinaryTaxable, prefIncome) {
+    var rows = [], remaining = prefIncome, stackTop = ordinaryTaxable;
+    var room0 = Math.max(0, bp[0] - stackTop);
+    var in0 = Math.min(remaining, room0);
+    if (in0 > 0) rows.push({ rate: 0, amount: in0, tax: 0 });
+    remaining -= in0; stackTop += in0;
+    var room15 = Math.max(0, bp[1] - Math.max(stackTop, bp[0]));
+    var in15 = Math.min(remaining, room15);
+    if (in15 > 0) rows.push({ rate: 0.15, amount: in15, tax: in15 * 0.15 });
+    remaining -= in15; stackTop += in15;
+    if (remaining > 0) rows.push({ rate: 0.20, amount: remaining, tax: remaining * 0.20 });
+    return rows;
+  }
+  function traceColumn(label, r) {
+    var p = r.profile, fs = p.filingStatus, tb = TSIQ.TABLES_2026;
+    var seDeduction = r.seTax / 2;
+    var incomeRows = [
+      ['Wages', p.wages], ['Owner W-2 wages', p.ownerWages], ['Schedule C net profit', p.scheduleCNet],
+      ['K-1 passthrough income', p.passthroughK1], ['Rental (after §469 suspension)', r.rentalAllowed],
+      ['Net capital gain/(loss) (after §1211 netting/carryforward)', r.netCapitalAllowed],
+      ['Qualified dividends', p.qualDiv], ['Interest', p.interest], ['Other income', p.otherIncome],
+      ['Roth conversion income', p.rothConversionIncome], ['Taxable Social Security (of ' + usd(p.ssBenefitsGross || 0) + ' gross)', r.ssTaxable],
+      ['§461(l) disallowed excess business loss (added back)', r.excessBusinessLoss]
+    ].filter(function (row) { return row[1]; });
+    var html = '<div class="trace-col"><h4>' + esc(label) + '</h4>' +
+      '<table class="results-table trace-table"><tbody>' +
+      '<tr class="trace-group"><td colspan="2">Income items (post-strategy)</td></tr>' +
+      incomeRows.map(function (row) { return '<tr><td>' + esc(row[0]) + '</td><td>' + usd(row[1]) + '</td></tr>'; }).join('') +
+      '<tr class="total-row"><td>Total income</td><td>' + usd(r.totalIncome) + '</td></tr>' +
+      '<tr><td>Less: half of SE tax (above-the-line)</td><td>' + usd(-seDeduction) + '</td></tr>' +
+      '<tr class="total-row"><td>Adjusted gross income (AGI)</td><td>' + usd(r.agi) + '</td></tr>' +
+      '<tr class="trace-group"><td colspan="2">Deduction (' + (r.usedItemized ? 'itemized' : 'standard') + ')</td></tr>' +
+      (r.usedItemized ? (
+        '<tr><td>SALT (capped at ' + usd(r.saltEffectiveCap) + ')</td><td>' + usd(r.saltDeduction) + '</td></tr>' +
+        '<tr><td>Mortgage interest</td><td>' + usd(p.mortgageInterest) + '</td></tr>' +
+        '<tr><td>Charitable (after §170(p) 0.5%-of-AGI floor)</td><td>' + usd(r.charitableItemizedAllowed) + '</td></tr>' +
+        '<tr><td>Other itemized</td><td>' + usd(p.otherItemized) + '</td></tr>' +
+        (r.itemizedLimitation > 0 ? '<tr><td>§68 37%-bracket itemized limitation</td><td>' + usd(-r.itemizedLimitation) + '</td></tr>' : '')
+      ) : '<tr><td>Standard deduction</td><td>' + usd(tb.standardDeduction[fs] + (p.age65Count || 0) * tb.additionalStdDedAged[fs]) + '</td></tr>') +
+      (r.nonItemizerCharitableAllowed > 0 ? '<tr><td>Non-itemizer cash charitable (§70424)</td><td>' + usd(r.nonItemizerCharitableAllowed) + '</td></tr>' : '') +
+      (r.seniorDeductionAllowed > 0 ? '<tr><td>Senior deduction (§70103, MAGI-phased)</td><td>' + usd(r.seniorDeductionAllowed) + '</td></tr>' : '') +
+      '<tr class="total-row"><td>Total deduction</td><td>' + usd(r.deduction) + '</td></tr>' +
+      '<tr><td>Taxable income before QBI/NOL</td><td>' + usd(r.tiBeforeQBI) + '</td></tr>' +
+      (r.qbiDeduction > 0 ? '<tr><td>QBI deduction (§199A)</td><td>' + usd(-r.qbiDeduction) + '</td></tr>' : '') +
+      (r.nolUsed > 0 ? '<tr><td>NOL carryforward used (§172(a)(2))</td><td>' + usd(-r.nolUsed) + '</td></tr>' : '') +
+      '<tr class="total-row"><td>Taxable income</td><td>' + usd(r.taxableIncome) + '</td></tr>' +
+      '<tr class="trace-group"><td colspan="2">Ordinary-rate tax (per bracket, on ' + usd(r.ordinaryTaxable) + ' of ordinary taxable income)</td></tr>' +
+      bracketBreakdown(tb.brackets[fs], r.ordinaryTaxable).map(function (b) {
+        return '<tr><td>' + TSIQ.fmt.pct(b.rate, 0) + ' bracket (' + usd(b.lower) + '&ndash;' +
+          (b.upper === Infinity ? '&infin;' : usd(b.upper)) + '): ' + usd(b.amount) + ' taxed</td><td>' + usd(b.tax) + '</td></tr>';
+      }).join('') +
+      '<tr class="total-row"><td>Ordinary tax subtotal</td><td>' + usd(r.ordinaryTax) + '</td></tr>' +
+      (r.prefIncome > 0 ? (
+        '<tr class="trace-group"><td colspan="2">LTCG/qualified dividend stacking (' + usd(r.prefIncome) + ' preferential-rate income)</td></tr>' +
+        ltcgBreakdown(tb.ltcgBreakpoints[fs] || tb.ltcgBreakpoints.mfj, r.ordinaryTaxable, r.prefIncome).map(function (b) {
+          return '<tr><td>' + TSIQ.fmt.pct(b.rate, 0) + ' LTCG band: ' + usd(b.amount) + ' taxed</td><td>' + usd(b.tax) + '</td></tr>';
+        }).join('') +
+        '<tr class="total-row"><td>Preferential-rate tax subtotal</td><td>' + usd(r.capGainsTax) + '</td></tr>'
+      ) : '') +
+      '<tr class="total-row"><td>Income tax before credits</td><td>' + usd(r.incomeTaxBeforeCredits) + '</td></tr>' +
+      '<tr class="trace-group"><td colspan="2">Credits &amp; other taxes</td></tr>' +
+      (r.ctcAllowed > 0 ? '<tr><td>Child tax credit / ODC</td><td>' + usd(-r.ctcAllowed) + '</td></tr>' : '') +
+      (r.otherCreditsAllowed > 0 ? '<tr><td>Other credits (R&amp;D, WOTC, etc.)</td><td>' + usd(-r.otherCreditsAllowed) + '</td></tr>' : '') +
+      (r.actcAllowed > 0 ? '<tr><td>Refundable Additional CTC</td><td>' + usd(-r.actcAllowed) + '</td></tr>' : '') +
+      '<tr><td>Net income tax</td><td>' + usd(r.incomeTax) + '</td></tr>' +
+      (r.seTax > 0 ? '<tr><td>Self-employment tax</td><td>' + usd(r.seTax) + '</td></tr>' : '') +
+      (r.ownerPayrollTax > 0 ? '<tr><td>Payroll tax (owner W-2, both halves)</td><td>' + usd(r.ownerPayrollTax) + '</td></tr>' : '') +
+      (r.addlMedicare > 0 ? '<tr><td>Additional Medicare (0.9%)</td><td>' + usd(r.addlMedicare) + '</td></tr>' : '') +
+      (r.niit > 0 ? '<tr><td>NIIT (3.8%)</td><td>' + usd(r.niit) + '</td></tr>' : '') +
+      (r.corpTaxPaid > 0 ? '<tr><td>C-corp entity-level tax (§11)</td><td>' + usd(r.corpTaxPaid) + '</td></tr>' : '') +
+      (r.otherTaxes > 0 ? '<tr><td>Other federal taxes (family payroll, etc.)</td><td>' + usd(r.otherTaxes) + '</td></tr>' : '') +
+      (r.excessSSCredit > 0 ? '<tr><td>Excess Social Security credit (§31(b))</td><td>' + usd(-r.excessSSCredit) + '</td></tr>' : '') +
+      '<tr class="total-row"><td>Total federal</td><td>' + usd(r.totalFederal) + '</td></tr>' +
+      '<tr class="trace-group"><td colspan="2">State</td></tr>' +
+      '<tr><td>Personal state tax (flat ' + TSIQ.fmt.pct(p.stateRate) + ')</td><td>' + usd(r.personalStateTax) + '</td></tr>' +
+      (r.ptetPaid > 0 ? '<tr><td>PTET (entity-level state)</td><td>' + usd(r.ptetPaid) + '</td></tr>' : '') +
+      (r.entityStateTax > 0 ? '<tr><td>Entity-level state tax (C-corp/S-corp)</td><td>' + usd(r.entityStateTax) + '</td></tr>' : '') +
+      '<tr class="total-row"><td>Total state</td><td>' + usd(r.totalState) + '</td></tr>' +
+      '<tr class="total-row"><td><strong>Total tax burden</strong></td><td><strong>' + usd(r.totalBurden) + '</strong></td></tr>' +
+      '</tbody></table></div>';
+    return html;
+  }
+  // ET6: baseline calibration panel — model vs. the client's own filed
+  // return (persisted from the PDF importer's `result.reference`, which was
+  // previously discarded after Apply except the two safe-harbor fields).
+  function calibrationPanelHtml(run) {
+    var filed = lastFiledReturnReference;
+    var base = run.baseline.years[0];
+    var rows = [
+      ['Total income', base.totalIncome, filed.ref.totalIncome],
+      ['AGI', base.agi, filed.ref.agi],
+      ['Deduction', base.deduction, filed.ref.deduction],
+      ['QBI deduction', base.qbiDeduction, filed.ref.qbiDeduction],
+      ['Taxable income', base.taxableIncome, filed.ref.taxableIncome],
+      ['Total tax (federal)', base.totalFederal, filed.ref.totalTax],
+      ['SE tax', base.seTax, filed.ref.seTax]
+    ].filter(function (r) { return r[2] !== null && r[2] !== undefined; });
+    var yearsDiffer = filed.formYear && filed.formYear !== TSIQ.TABLES_2026.taxYear;
+    return '<h3 style="margin-top:0">Baseline Calibration — Model vs. Filed Return</h3>' +
+      '<p class="hint">Comparing this baseline model (' + TSIQ.TABLES_2026.taxYear + ' law) against the client\'s own reported' +
+      (filed.formYear ? ' Tax Year ' + filed.formYear : '') + ' return' +
+      (yearsDiffer ? ' — a delta here is EXPECTED, not necessarily an error (see below)' : '') + '.</p>' +
+      '<table class="results-table"><thead><tr><th></th><th>Model (baseline)</th><th>Filed return</th><th>Delta</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td>' + esc(r[0]) + '</td><td>' + usd(r[1]) + '</td><td>' + usd(r[2]) + '</td><td>' + usd(r[1] - r[2]) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<p class="hint" style="margin-top:12px">Legitimate reasons these differ: (1) the model applies ' + TSIQ.TABLES_2026.taxYear +
+      ' law/brackets to every year, including a return filed under an earlier year\'s law; (2) the PDF importer lumps IRA/pension/' +
+      'other income together in "Other income" rather than mapping every Schedule 1 line item; (3) state tax here is a single flat ' +
+      'effective rate, not the return\'s actual state bracket/credit computation. A delta explained by one of these is expected, not ' +
+      'a bug — a delta far beyond what they\'d explain is worth a second look at the entered figures.</p>';
+  }
+
+  function calculationTraceHtml(run) {
+    var base = run.baseline.years[0];
+    var html = '<h3 style="margin-top:0">Calculation Trace — Tax Year ' + TSIQ.TABLES_2026.taxYear + '</h3>' +
+      '<p class="hint">Every figure below is exactly what the engine returned for year 1 — tie any line ' +
+      'to your own tax software to verify. Rows with a $0 or not-applicable value are omitted for readability.</p>' +
+      '<div class="trace-cols">' + traceColumn('Baseline', base);
+    run.scenarios.forEach(function (sc) {
+      html += traceColumn(sc.label, sc.result.years[0]);
+    });
+    return html + '</div>';
+  }
+
   function detailRows(cols) {
     var lines = [
       ['Adjusted gross income', function (r) { return r.agi; }],
@@ -896,8 +1089,9 @@
       return { label: sc.label, r: sc.result.years[0] };
     }));
 
-    // Headline KPIs from the best scenario
-    var best = TSIQ.bestScenario(run.scenarios);
+    // Headline KPIs from the best scenario (ET5: or the advisor's override
+    // of a detected near-tie — see the banner rendered further down).
+    var best = TSIQ.bestScenario(run.scenarios, run.forcedWinnerLabel);
     var yr1Savings = base.totalBurden - best.result.years[0].totalBurden;
     var cumSavings = run.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
@@ -910,7 +1104,11 @@
       '<span class="rc-meta">' + esc(TSIQ.FILING_STATUS_LABELS[run.profile.filingStatus]) +
       ' &middot; ' + strategyCount + (strategyCount === 1 ? ' strategy' : ' strategies') +
       ' &middot; ' + run.years + '-year projection &middot; Tax Year ' + TSIQ.TABLES_2026.taxYear +
-      '</span></div>';
+      '</span>' +
+      '<button type="button" class="link" id="btn-calc-trace">Show calculation trace</button>' +
+      (lastFiledReturnReference
+        ? '<button type="button" class="link" id="btn-calibration">Baseline vs. filed return</button>' : '') +
+      '</div>';
 
     // WF6: scenario diff strip, beside the results table too (not just above
     // Run Comparison) — computed fresh off the CURRENT builder selections,
@@ -919,6 +1117,27 @@
     var diffText = run.scenarios.length > 1 ? scenarioDiffText() : '';
     if (diffText) {
       html += '<div class="scenario-diff results-diff">' + esc(diffText) + '</div>';
+    }
+
+    // ET5: near-tie detection — a tiny cumulative margin between Scenario 2
+    // and Scenario 3 shouldn't silently pick a "winner" that drives every
+    // client document; surface it and let the advisor override.
+    if (run.scenarios.length > 1) {
+      var margin = TSIQ.scenarioMargin(run.scenarios);
+      var tieThreshold = Math.max(1000, 0.0025 * run.baseline.totals.totalBurden);
+      if (margin < tieThreshold) {
+        html += '<div class="near-tie-banner">' +
+          '<strong>Near tie:</strong> ' + esc(run.scenarios[0].label) + ' and ' + esc(run.scenarios[1].label) +
+          ' are within ' + usd(margin) + ' of each other over the ' + run.years + '-year projection — ' +
+          'not a meaningful enough margin for the model to pick a "winner." Choose which one drives ' +
+          'the client-facing documents based on implementation complexity, risk tolerance, or client ' +
+          'preference: <select id="forced-winner-select">' +
+          '<option value="">Auto (lowest cumulative burden — currently ' + esc(best.label) + ')</option>' +
+          run.scenarios.map(function (sc) {
+            return '<option value="' + esc(sc.label) + '"' + (run.forcedWinnerLabel === sc.label ? ' selected' : '') +
+              '>' + esc(sc.label) + '</option>';
+          }).join('') + '</select></div>';
+      }
     }
 
     // KPI cards — savings are the hero (count-up animated after render)
@@ -1032,6 +1251,8 @@
       html += '<td>' + usd(sc.result.totals.totalBurden) + '</td><td class="sav">' + usd(cum[i]) + '</td>';
     });
     html += '</tr></tbody></table></div>';
+
+    html += contributionTable(run, base.totalBurden);
 
     // planning notes from the strategies + engine
     var allNotes = [];
@@ -1489,6 +1710,10 @@
       var ref = result.reference;
       if (ref.totalTax !== null && ref.totalTax !== undefined) $('priorYearTax').value = Math.round(ref.totalTax);
       if (ref.agi !== null && ref.agi !== undefined) $('priorYearAGI').value = Math.round(ref.agi);
+      // ET6: persist the full filed-return reference (previously discarded
+      // except the two safe-harbor fields above) for the baseline
+      // calibration panel — model vs. what the client's return actually said.
+      lastFiledReturnReference = { formYear: result.formYear, ref: ref };
       $('pdf-review-modal').close();
       clearLastRunForNewClient();
       formDirty = true;
@@ -1720,6 +1945,27 @@
     });
     $('btn-suggest').addEventListener('click', function () { runSuggestions(); });
     $('btn-undo').addEventListener('click', undoLast);
+    // ET5: near-tie override select lives inside the dynamically-rendered
+    // results HTML — delegate on the stable #results container so this
+    // listener survives every innerHTML replacement in renderResults().
+    $('results').addEventListener('change', function (e) {
+      if (e.target && e.target.id === 'forced-winner-select' && lastRun) {
+        lastRun.forcedWinnerLabel = e.target.value || null;
+        renderResults(lastRun);
+      }
+    });
+    // ET4: calculation-trace popup — reuses the existing detail-modal
+    // plumbing (open/close already wired in buildLibrary()).
+    $('results').addEventListener('click', function (e) {
+      if (e.target && e.target.id === 'btn-calc-trace' && lastRun) {
+        $('detail-body').innerHTML = calculationTraceHtml(lastRun);
+        $('detail-modal').showModal();
+      }
+      if (e.target && e.target.id === 'btn-calibration' && lastRun && lastFiledReturnReference) {
+        $('detail-body').innerHTML = calibrationPanelHtml(lastRun);
+        $('detail-modal').showModal();
+      }
+    });
     $('btn-export').addEventListener('click', exportClientFile);
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', function (e) {

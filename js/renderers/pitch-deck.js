@@ -15,6 +15,7 @@ TSIQ.render = TSIQ.render || {};
 (function () {
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
+  var usdApprox = function (n) { return TSIQ.fmt.usdApprox(n); }; // ET7 — headline figures only
 
   /**
    * data: same shape as clientReport/slideshow, PLUS:
@@ -23,7 +24,7 @@ TSIQ.render = TSIQ.render || {};
    */
   TSIQ.render.pitchDeck = function (data) {
     // Pitch is built on the best scenario (lowest total burden).
-    var best = TSIQ.bestScenario(data.scenarios);
+    var best = TSIQ.bestScenario(data.scenarios, data.forcedWinnerLabel);
 
     var baseYr1 = data.baseline.years[0].totalBurden;
     var firstYearSavings = baseYr1 - best.result.years[0].totalBurden;
@@ -52,10 +53,10 @@ TSIQ.render = TSIQ.render || {};
 
       '<div class="slide center">' +
       '<div class="eyebrow">Where you stand today</div>' +
-      '<div class="big" style="color:#e8756a">' + usd(baseYr1) + '</div>' +
+      '<div class="big" style="color:#e8756a">' + usdApprox(baseYr1) + '</div>' +
       '<div class="big-label">Projected ' + TSIQ.TABLES_2026.taxYear + ' tax if nothing changes</div>' +
       '<p class="sub" style="margin-top:4vh">Over the next ' + data.years + ' years, that adds up to ' +
-      '<strong>' + usd(data.baseline.totals.totalBurden) + '</strong>. It does not have to.</p></div>' +
+      '<strong>' + usdApprox(data.baseline.totals.totalBurden) + '</strong>. It does not have to.</p></div>' +
 
       '<div class="slide center">' +
       '<div class="eyebrow">Our analysis</div>' +
@@ -73,10 +74,10 @@ TSIQ.render = TSIQ.render || {};
       // structural/near-zero moves.
       var numberBlock;
       if (step.incremental >= 500) {
-        numberBlock = '<div class="big">' + usd(step.incremental) + '</div>' +
+        numberBlock = '<div class="big">' + usdApprox(step.incremental) + '</div>' +
           '<div class="big-label">Additional first-year savings</div>';
       } else if (step.incremental <= -500) {
-        numberBlock = '<div class="big" style="color:#e8756a">' + usd(step.incremental) + '</div>' +
+        numberBlock = '<div class="big" style="color:#e8756a">' + usdApprox(step.incremental) + '</div>' +
           '<div class="big-label">Year-one investment — pays off in strategies that follow</div>';
       } else {
         numberBlock = '<div class="big" style="font-size:6vh">Foundation</div>' +
@@ -93,12 +94,12 @@ TSIQ.render = TSIQ.render || {};
     slides += '' +
       '<div class="slide center">' +
       '<div class="eyebrow">All together — first year</div>' +
-      '<div class="big">' + usd(firstYearSavings) + '</div>' +
+      '<div class="big">' + usdApprox(firstYearSavings) + '</div>' +
       '<div class="big-label">Estimated ' + TSIQ.TABLES_2026.taxYear + ' tax savings</div></div>' +
 
       '<div class="slide center">' +
       '<div class="eyebrow">Over ' + data.years + ' years</div>' +
-      '<div class="big">' + usd(cumSavings) + '</div>' +
+      '<div class="big">' + usdApprox(cumSavings) + '</div>' +
       '<div class="big-label">Estimated cumulative savings</div>' +
       '<p class="sub" style="margin-top:4vh">Money that compounds in your business and your ' +
       'investments instead of leaving every April.</p></div>';

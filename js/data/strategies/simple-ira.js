@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 63,
   modeled: true,
+  character: 'deferral', // ET2
 
   // Notice 98-4: an employer with a SIMPLE for a year can't maintain any
   // other qualified plan for that year — same restriction apply() already

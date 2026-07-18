@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 18,
   modeled: false, // advisory-only: character/structure play; rent level and entity facts vary too much to model honestly
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

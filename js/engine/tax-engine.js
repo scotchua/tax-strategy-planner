@@ -466,6 +466,9 @@ window.TSIQ = window.TSIQ || {};
       seniorDeductionAllowed: seniorDeductionAllowed,
       qbiDeduction: qbi, taxableIncome: taxableIncome,
       ordinaryTax: ordinaryTax, capGainsTax: capGainsTax,
+      prefIncome: prefIncome, ordinaryTaxable: ordinaryTaxable, // ET4 calculation-trace popup
+      seNetEarnings: seNetEarnings, tiBeforeQBI: tiBeforeQBI, // ET4
+      netCapitalAllowed: netCapitalAllowed, rentalAllowed: rentalAllowed, // ET4
       incomeTaxBeforeCredits: incomeTaxBeforeCredits,
       ctcAllowed: ctcAllowed, actcAllowed: actcAllowed, otherCreditsAllowed: otherCreditsAllowed,
       corpTaxPaid: p.corpTaxPaid, otherTaxes: p.otherTaxes, incomeTax: incomeTax,

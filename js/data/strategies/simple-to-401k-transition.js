@@ -12,6 +12,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 59,
   modeled: false,
+  character: 'permanent', // ET2
 
   requiresOneOf: ['simple-ira'],
 

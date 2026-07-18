@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 12,
   modeled: false, // advisory-only: structural value, no honest per-return math
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

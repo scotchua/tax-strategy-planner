@@ -233,13 +233,13 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## ET. Estimate transparency
 
-- [ ] **ET1. Per-strategy contribution table in the advisor panel, with zero-effect flags.** (M/high)
+- [x] **ET1. Per-strategy contribution table in the advisor panel, with zero-effect flags.** (M/high)
   `incrementalSavings` is computed only inside the deck renderers — the CPA never sees
   per-strategy dollars while building. Render a "what each strategy contributes" table in
   renderResults; badge any modeled strategy contributing ~$0 ("no modeled effect for this client
   — check parameters or remove before generating client documents").
 
-- [ ] **ET2. Timing vs permanent: per-strategy cumulative + a `character` field; split the
+- [x] **ET2. Timing vs permanent: per-strategy cumulative + a `character` field; split the
   headline.** (M/high)
   Per-strategy figures headline the year-1 delta, which structurally overstates acceleration
   strategies (8 strategies have explicit later-year give-backs), and the cumulative headline
@@ -249,30 +249,30 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   metadata; split the client-facing cumulative headline into "permanent savings" + "tax
   deferred" lines.
 
-- [ ] **ET3. Disclose order-dependent attribution.** (S/high)
+- [x] **ET3. Disclose order-dependent attribution.** (S/high)
   Incremental attribution telescopes (the plan total is exact) but the per-strategy split
   depends on applyOrder — disclosed today only in a code comment. One visible sentence wherever
   per-strategy figures print. Optionally add an "each-strategy-alone" view with an explicit
   interaction/synergy remainder line (the remainder concept only exists in the alone view).
 
-- [ ] **ET4. Calculation-trace popup (audit trail).** (M/high)
+- [x] **ET4. Calculation-trace popup (audit trail).** (M/high)
   `computeYear` already returns nearly every intermediate; render a full waterfall per
   scenario-year (income items → §1211 netting → AGI → deduction detail incl. SALT cap/charitable
   floor/2-37 → QBI → TI → per-bracket ordinary tax → LTCG stacking → credits → other taxes) via
   the existing popup plumbing. Lets a CPA tie any number to their tax software — the single
   biggest trust feature for the "accuracy over speed" ethos.
 
-- [ ] **ET5. Near-tie detection in bestScenario + advisor override.** (M/medium)
+- [x] **ET5. Near-tie detection in bestScenario + advisor override.** (M/medium)
   A $40 cumulative margin silently drives every client document today. Return the margin; below
   max($1,000, 0.25% of baseline burden), tell the advisor the model can't meaningfully rank the
   scenarios, and let them pick which one drives client outputs.
 
-- [ ] **ET6. Baseline calibration panel: model vs the filed return.** (M/medium)
+- [x] **ET6. Baseline calibration panel: model vs the filed return.** (M/medium)
   The parser's `result.reference` (filed AGI/TI/tax) is discarded after Apply except the two
   safe-harbor fields. Persist it and render model-vs-filed line-by-line with the delta and the
   legitimate reasons they differ (prior-year law vs 2026, lumped otherIncome, flat state rate).
 
-- [ ] **ET7. Precision framing on client-facing headlines.** (S/medium)
+- [x] **ET7. Precision framing on client-facing headlines.** (S/medium)
   Add `TSIQ.fmt.usdApprox` (nearest $100, "≈" prefix) for client PDF/slideshow/pitch-deck
   headline figures; keep exact dollars in the advisor panel.
 

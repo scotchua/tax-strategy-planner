@@ -781,6 +781,45 @@ function check(name, actual, expected, tol) {
   check('F32 529 no state deduction modeled when advisor says no', eOutNo.profile.stateOnlyDeduction || 0, 0);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 33 — Wave G (ET) additions: computeYear's new ET4 trace fields
+ * (prefIncome/ordinaryTaxable must sum to taxableIncome), ET5's
+ * bestScenario forcedLabel override + scenarioMargin, and ET2's
+ * incrementalSavings cumulativeIncremental (backward-compatible: absent
+ * unless a starting cumulative burden is passed).
+ * ---------------------------------------------------------------------- */
+(function () {
+  var r = TSIQ.computeYear({ filingStatus: 'single', wages: 60000, ltcg: 20000 }, {});
+  check('F33 ET4 ordinaryTaxable + prefIncome == taxableIncome',
+    r.ordinaryTaxable + r.prefIncome, r.taxableIncome, 0.01);
+  check('F33 ET4 prefIncome equals the LTCG (no other preferential income)', r.prefIncome, 20000);
+
+  var scenarios = [
+    { label: 'Scenario 2', result: { totals: { totalBurden: 50000 } } },
+    { label: 'Scenario 3', result: { totals: { totalBurden: 50500 } } }
+  ];
+  check('F33 ET5 bestScenario picks the lower burden by default',
+    TSIQ.bestScenario(scenarios).label === 'Scenario 2' ? 1 : 0, 1, 0);
+  check('F33 ET5 bestScenario honors a matching forcedLabel override',
+    TSIQ.bestScenario(scenarios, 'Scenario 3').label === 'Scenario 3' ? 1 : 0, 1, 0);
+  check('F33 ET5 bestScenario falls back to default when forcedLabel matches nothing',
+    TSIQ.bestScenario(scenarios, 'Nope').label === 'Scenario 2' ? 1 : 0, 1, 0);
+  check('F33 ET5 scenarioMargin is the gap to the runner-up', TSIQ.scenarioMargin(scenarios), 500);
+  check('F33 ET5 scenarioMargin is Infinity with under 2 scenarios',
+    TSIQ.scenarioMargin([scenarios[0]]) === Infinity ? 1 : 0, 1, 0);
+
+  require(path.join(root, 'js/data/strategies/hsa-contributions.js'));
+  var hsa = TSIQ.strategyModules.filter(function (s) { return s.id === 'hsa-contributions'; })[0];
+  var sel = [{ strategy: hsa, params: {} }];
+  var profile = { filingStatus: 'single', wages: 80000 };
+  var noCumulative = TSIQ.incrementalSavings(profile, sel, 1, 0, 10000);
+  check('F33 ET2 cumulativeIncremental absent when startingCumulativeBurden is omitted (backward compat)',
+    noCumulative[0].cumulativeIncremental === undefined ? 1 : 0, 1, 0);
+  var withCumulative = TSIQ.incrementalSavings(profile, sel, 3, 0.03, 10000, 30000);
+  check('F33 ET2 cumulativeIncremental present when startingCumulativeBurden is passed',
+    withCumulative[0].cumulativeIncremental !== undefined ? 1 : 0, 1, 0);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');

@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 64,
   modeled: true,
+  character: 'deferral', // ET2
 
   // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
   conflictsWith: ['simple-ira'],

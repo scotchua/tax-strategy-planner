@@ -13,6 +13,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 68,
   modeled: false,
+  character: 'deferral', // ET2
 
   advisor: {
     summary:

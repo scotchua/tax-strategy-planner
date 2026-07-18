@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 61,
   modeled: true,
+  character: 'deferral', // ET2
 
   // Same base compensation as a SEP for the same self-employment income
   // (§415(c) coordination already caps both via state.dcAnnualAdditionsUsed);

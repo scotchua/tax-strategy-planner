@@ -54,7 +54,8 @@ require(path.join(root, 'js/engine/scenario-engine.js'));
   }
 })();
 
-var REQUIRED = ['id', 'name', 'category', 'applyOrder', 'modeled', 'advisor', 'client', 'inputs', 'appliesTo', 'apply'];
+var REQUIRED = ['id', 'name', 'category', 'applyOrder', 'modeled', 'character', 'advisor', 'client', 'inputs', 'appliesTo', 'apply'];
+var CHARACTER_VALUES = ['permanent', 'timing', 'deferral']; // ET2
 var ADVISOR_KEYS = ['summary', 'mechanics', 'authority', 'requirements', 'risks', 'bestFit', 'implementation'];
 var CLIENT_KEYS = ['teaser', 'headline', 'plainEnglish', 'analogy', 'benefits', 'steps', 'considerations'];
 
@@ -108,6 +109,9 @@ var warnings = [];
 TSIQ.STRATEGIES.forEach(function (s) {
   var errs = [];
   REQUIRED.forEach(function (k) { if (s[k] === undefined) errs.push('missing ' + k); });
+  if (s.character !== undefined && CHARACTER_VALUES.indexOf(s.character) === -1) {
+    errs.push('character must be one of ' + CHARACTER_VALUES.join('/') + ' — got ' + JSON.stringify(s.character));
+  }
   if (seenIds[s.id]) errs.push('DUPLICATE id');
   seenIds[s.id] = true;
   if (typeof s.id !== 'string' || !/^[a-z0-9-]+$/.test(s.id)) {

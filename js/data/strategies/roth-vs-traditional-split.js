@@ -12,6 +12,7 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 66,
   modeled: false,
+  character: 'timing', // ET2
 
   advisor: {
     summary:

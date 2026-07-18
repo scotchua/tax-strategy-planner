@@ -15,6 +15,7 @@ TSIQ.strategyModules.push({
   // stale pre-deduction figure.
   applyOrder: 88,
   modeled: true,
+  character: 'permanent', // ET2
 
   // Non-blocking hint only — a client with existing K-1 income doesn't need
   // this paired with an election in the SAME scenario; apply() already warns

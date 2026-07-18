@@ -12,6 +12,7 @@ TSIQ.strategyModules.push({
   category: 'Real Estate & Cost Recovery',
   applyOrder: 70,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

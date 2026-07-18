@@ -285,6 +285,17 @@ TSIQ.fmt = {
   usd0: function (n) { return TSIQ.fmt.usd(n); },
   pct: function (n, dp) {
     return (n * 100).toFixed(dp === undefined ? 1 : dp) + '%';
+  },
+  // ET7: client-facing HEADLINE figures round to the nearest $100 with an
+  // "≈" prefix — a projected multi-year number is not a filed-return exact
+  // figure, and dressing it as one overstates precision this tool doesn't
+  // have (unindexed brackets, flat state rate, etc. — see CLAUDE.md). Keep
+  // exact TSIQ.fmt.usd() in the advisor panel, where the CPA ties every
+  // digit back to the engine.
+  usdApprox: function (n) {
+    var rounded = Math.round(n / 100) * 100;
+    var sign = rounded < 0 ? '-' : '';
+    return sign + '≈$' + Math.abs(rounded).toLocaleString('en-US');
   }
 };
 

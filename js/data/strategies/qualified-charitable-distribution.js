@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Business Expenses',
   applyOrder: 27,
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

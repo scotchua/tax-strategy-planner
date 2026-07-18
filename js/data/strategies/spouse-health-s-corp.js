@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Payroll & Family',
   applyOrder: 37,
   modeled: true,
+  character: 'permanent', // ET2
 
   // Non-blocking hint only — an existing S-corp owner (ownerWages already
   // entered) doesn't need the election paired in the SAME scenario.

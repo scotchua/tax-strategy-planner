@@ -9,6 +9,7 @@ TSIQ.render = TSIQ.render || {};
 (function () {
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
+  var usdApprox = function (n) { return TSIQ.fmt.usdApprox(n); }; // ET7 — headline figures only
 
   var REPORT_CSS = '' +
     '*{box-sizing:border-box;margin:0;padding:0}' +
@@ -253,7 +254,7 @@ TSIQ.render = TSIQ.render || {};
    * data: { clientName, firmName, baseline, scenarios: [{label, result, strategies:[strategyObj]}], years }
    */
   TSIQ.render.clientReport = function (data) {
-    var best = TSIQ.bestScenario(data.scenarios);
+    var best = TSIQ.bestScenario(data.scenarios, data.forcedWinnerLabel);
     var firstYearSavings = data.baseline.years[0].totalBurden - best.result.years[0].totalBurden;
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
@@ -277,9 +278,9 @@ TSIQ.render = TSIQ.render || {};
 
       '<div class="page">' +
       '<h2>The Bottom Line</h2>' +
-      '<div class="big-number"><div class="amount">' + usd(firstYearSavings) + '</div>' +
+      '<div class="big-number"><div class="amount">' + usdApprox(firstYearSavings) + '</div>' +
       '<div class="label">Estimated first-year tax savings</div></div>' +
-      '<div class="big-number"><div class="amount">' + usd(cumSavings) + '</div>' +
+      '<div class="big-number"><div class="amount">' + usdApprox(cumSavings) + '</div>' +
       '<div class="label">Estimated savings over ' + data.years + ' years</div></div>' +
       '<p>Without a plan, taxes are simply what happens to you. With a plan, they become a number we manage. ' +
       'The pages that follow show where you stand today, the specific strategies we recommend, and exactly ' +
