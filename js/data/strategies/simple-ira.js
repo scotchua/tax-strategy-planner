@@ -111,7 +111,9 @@ TSIQ.strategyModules.push({
 
   inputs: [
     { key: 'deferral', label: 'Owner deferral', type: 'currency', default: 17000 },
-    { key: 'matchAmount', label: 'Employer match (owner)', type: 'currency', default: 5000 }
+    { key: 'matchAmount', label: 'Employer match (owner)', type: 'currency', default: 5000 },
+    { key: 'age50Plus', label: 'Owner age 50 or older?', type: 'select', default: 'no',
+      options: [{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes (50+)' }] }
   ],
 
   appliesTo: function (profile) {
@@ -122,8 +124,8 @@ TSIQ.strategyModules.push({
    * Owner amounts only — staff match cost is flagged, not modeled. Self-employed:
    * deferral + match are above-the-line and reduce QBI. S corp owner: deferral
    * reduces Box 1 wages (modeled via adjustments; FICA unchanged), match is an
-   * entity deduction against passthroughK1. Deferral capped at $17,000 (catch-up
-   * not modeled — no age input; note emitted). Match capped at 3% of compensation.
+   * entity deduction against passthroughK1. Deferral capped at $17,000 + $4,000
+   * age-50 catch-up (SF4). Match capped at 3% of compensation.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -158,12 +160,13 @@ TSIQ.strategyModules.push({
 
     // Compensation base: net SE earnings (0.9235 factor) or owner W-2 wages.
     var comp = isSE ? p.scheduleCNet * 0.9235 : p.ownerWages;
+    var is50 = params.age50Plus === 'yes';
+    var catchUp = is50 ? lim.simpleCatchUp50 : 0;
 
-    var deferral = Math.min(params.deferral || 0, lim.simpleDeferral, comp);
-    if ((params.deferral || 0) > lim.simpleDeferral && yearIndex === 0) {
-      notes.push('Deferral capped at ' + TSIQ.fmt.usd(lim.simpleDeferral) + ' (2026 SIMPLE limit). ' +
-        'A further ' + TSIQ.fmt.usd(lim.simpleCatchUp50) + ' catch-up is available at age 50+ — ' +
-        'not modeled without an age input.');
+    var deferral = Math.min(params.deferral || 0, lim.simpleDeferral + catchUp, comp);
+    if ((params.deferral || 0) > lim.simpleDeferral + catchUp && yearIndex === 0) {
+      notes.push('Deferral capped at ' + TSIQ.fmt.usd(lim.simpleDeferral + catchUp) +
+        ' (2026 SIMPLE limit' + (is50 ? ' + age-50 catch-up' : '') + ').');
     }
 
     var matchCap = comp * 0.03; // 3% match formula

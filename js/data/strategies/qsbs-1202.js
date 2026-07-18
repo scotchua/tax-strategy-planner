@@ -125,7 +125,10 @@ TSIQ.strategyModules.push({
     { key: 'excludedGain', label: 'QSBS gain eligible for exclusion', type: 'currency', default: 2000000 },
     { key: 'acquisitionEra', label: 'Stock acquisition era', type: 'select', default: 'pre',
       options: [{ value: 'pre', label: 'Acquired before 7/5/2025 (old rules)' }, { value: 'post', label: 'Acquired after 7/4/2025 (OBBBA tiers)' }] },
-    { key: 'holdYears', label: 'Years held at sale', type: 'number', default: 5 }
+    { key: 'holdYears', label: 'Years held at sale', type: 'number', default: 5 },
+    { key: 'stateConforms', label: 'Does the client\'s state conform to §1202?', type: 'select', default: 'conforms',
+      options: [{ value: 'conforms', label: 'Yes — state also excludes the gain' },
+        { value: 'nonconforms', label: 'No — state taxes the excluded gain (e.g. CA, PA, AL, MS)' }] }
   ],
 
   appliesTo: function (profile) {
@@ -186,8 +189,16 @@ TSIQ.strategyModules.push({
       notes.push('Partial tier: 7% of the excluded gain is an AMT preference (§57(a)(7)) and the ' +
         'included portion is 28%-rate gain — neither is modeled by the engine (no AMT); the shown benefit is slightly overstated.');
     }
-    notes.push('State nonconformity not modeled — the flat state rate here excludes the gain too, so in ' +
-      'nonconforming states (e.g., CA) the STATE savings shown are overstated; adjust manually.');
+    if (params.stateConforms === 'nonconforms') {
+      p.stateIncomeAddBack = (p.stateIncomeAddBack || 0) + reduction;
+      notes.push('State does not conform to §1202 (e.g. CA, PA, AL, MS) — ' + TSIQ.fmt.usd(reduction) +
+        ' of the excluded gain is added back for STATE tax purposes only, at the flat state rate ' +
+        'entered. Federal exclusion is unaffected.');
+    } else {
+      notes.push('Modeled assuming the client\'s state conforms to §1202 and also excludes the gain — ' +
+        'set "Does the client\'s state conform" to No for nonconforming states (e.g. CA, PA, AL, MS; ' +
+        'NJ conforms starting with tax years beginning 1/1/2026).');
+    }
     return { profile: p, notes: notes };
   }
 });

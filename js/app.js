@@ -669,14 +669,19 @@
       TSIQ.TABLES_2026.taxYear + ' tax law, which is no longer the current tax year — every ' +
       'figure below needs new tables before it can be relied on.</strong> ' : '') +
       '2026 federal figures per Rev. Proc. 2025-32 as amended by OBBBA. ' +
-      'Projection years apply 2026 law AND 2026 dollar thresholds/brackets to every year shown ' +
-      '(not inflation-indexed) — later-year figures are illustrative, not indexed projections. ' +
-      'State tax modeled at a flat effective rate. Rental income does not enter the §199A QBI ' +
-      'calculation, and QBI\'s 25%-wage/2.5%-UBIA alternative limitation is not modeled (only the ' +
-      '50%-of-wages prong). AMT and depreciation recapture on sale are not modeled — see the README Scope ' +
-      'Notes. §461(l) excess business loss is not modeled either, but is flagged above (Planning ' +
-      'Notes) with the dollar amount whenever a scenario\'s aggregate business loss actually ' +
-      'crosses the threshold.</p>';
+      'Projection years apply enacted sunset-dated law as it actually expires (e.g. the OBBBA ' +
+      'senior deduction after 2028, the enhanced SALT cap after 2029) but every bracket, ' +
+      'threshold, and breakpoint stays at its 2026 DOLLAR figure — none of it is inflation-' +
+      'indexed forward, so later-year figures are illustrative, not indexed projections. ' +
+      'State tax modeled at a flat effective rate (an optional entity-level rate can be added on ' +
+      'top for the C-corp/S-corp strategies, and a nonconforming-state add-back for QSBS — both ' +
+      'still simplified, not apportioned multi-state computations). Rental income does not enter ' +
+      'the §199A QBI calculation, and QBI\'s 25%-wage/2.5%-UBIA alternative limitation is not ' +
+      'modeled (only the 50%-of-wages prong). AMT and depreciation recapture on sale are not ' +
+      'modeled — see the README Scope Notes. §461(l) excess business loss IS modeled as a real ' +
+      'disallowance and NOL carryforward (flagged above in Planning Notes whenever it applies); ' +
+      'Medicare IRMAA surcharges for 65+ clients are flagged as a note only (a premium impact, ' +
+      'not a tax, and not included in the totals above).</p>';
 
     $('results').innerHTML = html;
     $('output-actions').style.display = 'flex';

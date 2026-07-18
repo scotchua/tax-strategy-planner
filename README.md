@@ -105,10 +105,12 @@ Just open a session in this folder and ask for what you want, e.g.:
 ## Scope notes (v1)
 
 Federal 2026 law per Rev. Proc. 2025-32 / OBBBA. State tax uses a flat effective
-rate. Not yet modeled: AMT, depreciation recapture on sale, §461(l) excess
-business loss disallowance (though the app flags the dollar exposure for the
-last two when they apply), rental income in the §199A QBI calculation, QBI's
-25%-wage/2.5%-UBIA alternative limitation, and inflation-indexing of
-brackets/thresholds in projection years 2+ (every year is computed at 2026
-law AND 2026 dollar thresholds). See `CLAUDE.md` for the full list and why
-each is out of scope.
+rate (with optional entity-level add-ons for a couple of strategies). Not yet
+modeled: AMT, depreciation recapture on sale (though the app flags the dollar
+exposure when it applies), rental income in the §199A QBI calculation, QBI's
+25%-wage/2.5%-UBIA alternative limitation, Medicare IRMAA as an actual cost
+(flagged as a note only), and inflation-indexing of brackets/thresholds in
+projection years 2+ (enacted sunset dates DO apply per year; dollar thresholds
+stay at 2026 figures). §461(l) excess business loss IS modeled as a real
+disallowance + NOL carryforward. See `CLAUDE.md` for the full list and why
+each remaining item is out of scope.

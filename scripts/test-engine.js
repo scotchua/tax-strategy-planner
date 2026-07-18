@@ -587,6 +587,140 @@ function check(name, actual, expected, tol) {
     r4.notes.some(function (n) { return n.indexOf('$5,770') !== -1; }) ? 1 : 0, 1, 0);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 28 — SF1/SF2 entity-level state tax add-backs. C-corp and S-corp
+ * retained/passthrough profit now carries an entity-level state cost
+ * (entityStateTax); nonconforming-state QSBS gain is added back to the
+ * STATE base only (stateIncomeAddBack) while the federal exclusion stands.
+ * ---------------------------------------------------------------------- */
+(function () {
+  require(path.join(root, 'js/data/strategies/c-corp-conversion.js'));
+  require(path.join(root, 'js/data/strategies/s-corp-election.js'));
+  require(path.join(root, 'js/data/strategies/qsbs-1202.js'));
+  var ccorp = TSIQ.strategyModules.filter(function (s) { return s.id === 'c-corp-conversion'; })[0];
+  var scorp = TSIQ.strategyModules.filter(function (s) { return s.id === 's-corp-election'; })[0];
+  var qsbs = TSIQ.strategyModules.filter(function (s) { return s.id === 'qsbs-1202'; })[0];
+
+  // C-corp: corpProfit = 200000 - 100000 salary - 7650 employerFICA - 3000
+  // adminCost = 89350; entityStateTax at a 6% rate = 5361.
+  var pC = { filingStatus: 'single', scheduleCNet: 200000, stateRate: 0.05 };
+  var outC = ccorp.apply(pC, { ownerSalary: 100000, dividendsPaid: 0, adminCost: 3000, corpStateRatePct: 6 }, 0, {});
+  check('F28 c-corp entityStateTax at explicit 6%', outC.profile.entityStateTax, 5361, 0.5);
+  var rC = TSIQ.computeYear(outC.profile, {});
+  check('F28 c-corp totalState includes entityStateTax', rC.totalState, 10361, 0.5);
+  var outC0 = ccorp.apply(pC, { ownerSalary: 100000, dividendsPaid: 0, adminCost: 3000, corpStateRatePct: 0 }, 0, {});
+  check('F28 c-corp entityStateTax at 0% (e.g. WY/SD/NV)', outC0.profile.entityStateTax, 0);
+
+  // S-corp: entityProfit = 200000 - 100000 - 7650 - 2500 = 89850; a 1.5%
+  // entity-level tax (e.g. CA) adds 1347.75 to totalState on top of the
+  // owner's ordinary personal-return state tax on the pass-through K-1.
+  var pS = { filingStatus: 'single', scheduleCNet: 200000, stateRate: 0.05 };
+  var outS = scorp.apply(pS, { salary: 100000, adminCost: 2500, entityStateTaxPct: 1.5 }, 0, {});
+  check('F28 s-corp entityStateTax at 1.5% (e.g. CA)', outS.profile.entityStateTax, 1347.75, 0.5);
+  var outS0 = scorp.apply(pS, { salary: 100000, adminCost: 2500 }, 0, {});
+  check('F28 s-corp entityStateTax defaults to 0 (most states)', outS0.profile.entityStateTax, 0);
+
+  // QSBS: a full $2,000,000 exclusion at a 10% state rate. Nonconforming
+  // state adds the full exclusion back to the STATE base only — federal
+  // ltcg still zero, but personalStateTax computed as if never excluded.
+  var pQ = { filingStatus: 'single', ltcg: 2000000, stateRate: 0.10 };
+  var outQNon = qsbs.apply(pQ, { excludedGain: 2000000, acquisitionEra: 'post', holdYears: 5, stateConforms: 'nonconforms' }, 0, {});
+  check('F28 qsbs nonconforming federal ltcg still fully excluded', outQNon.profile.ltcg, 0);
+  check('F28 qsbs nonconforming stateIncomeAddBack', outQNon.profile.stateIncomeAddBack, 2000000);
+  var rQNon = TSIQ.computeYear(outQNon.profile, {});
+  check('F28 qsbs nonconforming personalStateTax taxes the excluded gain', rQNon.personalStateTax, 200000);
+
+  var outQConf = qsbs.apply(pQ, { excludedGain: 2000000, acquisitionEra: 'post', holdYears: 5, stateConforms: 'conforms' }, 0, {});
+  check('F28 qsbs conforming state: no add-back', outQConf.profile.stateIncomeAddBack || 0, 0);
+})();
+
+/* -------------------------------------------------------------------------
+ * Fixture 29 — SF4 SECURE 2.0 catch-up fidelity: solo-401k's age-tiered
+ * catch-up (50-59 standard $8,000; 60-63 enhanced $11,250; 64+ reverts to
+ * standard) and the §414(v)(7) mandatory-Roth catch-up for prior-year
+ * compensation over $150,000 (that portion counts toward the limit but is
+ * excluded from the modeled deduction); simple-ira's age-50 catch-up.
+ * ---------------------------------------------------------------------- */
+(function () {
+  require(path.join(root, 'js/data/strategies/solo-401k.js'));
+  require(path.join(root, 'js/data/strategies/simple-ira.js'));
+  var solo = TSIQ.strategyModules.filter(function (s) { return s.id === 'solo-401k'; })[0];
+  var simple = TSIQ.strategyModules.filter(function (s) { return s.id === 'simple-ira'; })[0];
+  var p = { filingStatus: 'single', scheduleCNet: 300000 };
+
+  var outNone = solo.apply(p, { employeeDeferral: 40000, employerContribution: 0, ageCatchUpTier: 'none' }, 0, {});
+  check('F29 solo-401k under-50 deferral capped at $24,500', outNone.profile.adjustments, 24500);
+
+  var out5059 = solo.apply(p, { employeeDeferral: 40000, employerContribution: 0, ageCatchUpTier: '50to59' }, 0, {});
+  check('F29 solo-401k 50-59 standard catch-up ($8,000)', out5059.profile.adjustments, 32500);
+
+  var out6063 = solo.apply(p, { employeeDeferral: 40000, employerContribution: 0, ageCatchUpTier: '60to63' }, 0, {});
+  check('F29 solo-401k 60-63 enhanced catch-up ($11,250)', out6063.profile.adjustments, 35750);
+
+  var out64 = solo.apply(p, { employeeDeferral: 40000, employerContribution: 0, ageCatchUpTier: '64plus' }, 0, {});
+  check('F29 solo-401k 64+ reverts to standard catch-up ($8,000)', out64.profile.adjustments, 32500);
+
+  // Mandatory Roth: full $35,750 still counts toward the §402(g)/§415(c)
+  // limit (contributed), but only the $24,500 base is deductible.
+  var outRoth = solo.apply(p, { employeeDeferral: 40000, employerContribution: 0,
+    ageCatchUpTier: '60to63', priorYearWagesOver150k: 'yes' }, 0, {});
+  check('F29 mandatory-Roth catch-up excluded from the deduction', outRoth.profile.adjustments, 24500);
+
+  var pSimple = { filingStatus: 'single', scheduleCNet: 100000 };
+  var outSimpleNo = simple.apply(pSimple, { deferral: 20000, matchAmount: 0, age50Plus: 'no' }, 0, {});
+  check('F29 SIMPLE under-50 deferral unaffected', outSimpleNo.profile.adjustments, 17000);
+  var outSimpleYes = simple.apply(pSimple, { deferral: 20000, matchAmount: 0, age50Plus: 'yes' }, 0, {});
+  check('F29 SIMPLE age-50 catch-up lifts the effective cap to $21,000', outSimpleYes.profile.adjustments, 20000);
+})();
+
+/* -------------------------------------------------------------------------
+ * Fixture 30 — SF6 profit-sharing-new-comparability: owner allocation
+ * capped at the LESSER of $72,000 or owner compensation (not just the flat
+ * §415(c) dollar limit), and a K-1-only owner with no compensation figure
+ * gets a refusal note instead of an unlawful allocation.
+ * ---------------------------------------------------------------------- */
+(function () {
+  require(path.join(root, 'js/data/strategies/profit-sharing-new-comparability.js'));
+  var ps = TSIQ.strategyModules.filter(function (s) { return s.id === 'profit-sharing-new-comparability'; })[0];
+
+  var p1 = { filingStatus: 'single', ownerWages: 60000, passthroughK1: 200000 };
+  var out1 = ps.apply(p1, { ownerAllocation: 72000, staffCost: 5000 }, 0, {});
+  check('F30 owner allocation capped at owner compensation (60000), not the flat 72000 limit',
+    out1.profile.adjustments, 60000);
+
+  var p2 = { filingStatus: 'single', passthroughK1: 200000 };
+  var out2 = ps.apply(p2, { ownerAllocation: 40000, staffCost: 5000 }, 0, {});
+  check('F30 K-1-only owner (no wages/Schedule C) gets no allocation modeled',
+    out2.profile.adjustments || 0, 0);
+})();
+
+/* -------------------------------------------------------------------------
+ * Fixture 31 — SF7 bonus depreciation / §179 class-life select: the give-
+ * back schedule (and its stopping point) now follows the selected 5/7/15-
+ * year class life instead of a hard-coded 7 years.
+ * ---------------------------------------------------------------------- */
+(function () {
+  require(path.join(root, 'js/data/strategies/bonus-depreciation.js'));
+  require(path.join(root, 'js/data/strategies/section-179-expensing.js'));
+  var bonus = TSIQ.strategyModules.filter(function (s) { return s.id === 'bonus-depreciation'; })[0];
+  var sec179 = TSIQ.strategyModules.filter(function (s) { return s.id === 'section-179-expensing'; })[0];
+  var p = { filingStatus: 'single', scheduleCNet: 500000 };
+
+  // 5-year class: SL slice = 100000/5 = 20000. Year 0: extra deduction 80000.
+  var y0 = bonus.apply(p, { eligibleBasis: 100000, targetIncome: 'business', classLife: '5' }, 0, {});
+  check('F31 bonus 5-yr class year-0 scheduleCNet', y0.profile.scheduleCNet, 420000);
+  var y1 = bonus.apply(p, { eligibleBasis: 100000, targetIncome: 'business', classLife: '5' }, 1,
+    { bonusDepRoute: 'scheduleCNet' });
+  check('F31 bonus 5-yr class year-1 give-back (+20000)', y1.profile.scheduleCNet, 520000);
+  var y5 = bonus.apply(p, { eligibleBasis: 100000, targetIncome: 'business', classLife: '5' }, 5,
+    { bonusDepRoute: 'scheduleCNet' });
+  check('F31 bonus 5-yr class give-back stops after year 5', y5.profile.scheduleCNet, 500000);
+
+  // 15-year §179: SL slice = 150000/15 = 10000. Year 0: extra deduction 140000.
+  var s0 = sec179.apply(p, { amount: 150000, classLife: '15' }, 0, {});
+  check('F31 sec179 15-yr class year-0 scheduleCNet', s0.profile.scheduleCNet, 360000);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');

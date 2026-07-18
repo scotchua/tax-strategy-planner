@@ -130,11 +130,14 @@ TSIQ.strategyModules.push({
    * Year 1 only (harvesting is a discrete year-end action). Losses reduce
    * ltcg; the engine itself floors the AGI effect of a net capital loss at
    * −3,000 (−1,500 MFS) per §1211(b) and reports the disallowed excess as
-   * capitalLossDisallowed (carryforward years not modeled). Harvested gains
-   * ADD to ltcg — genuinely tax-free only within the 0% bracket; the
-   * engine's stacking shows any spillover into 15% honestly. The basis-reset
-   * benefit of gain harvesting (lower FUTURE gains) is not modeled — the
-   * shown cost is the conservative view.
+   * capitalLossDisallowed. SF5: that excess is no longer stranded — the
+   * engine banks it in state.capitalLossCarryforward and automatically
+   * applies it against future years' LT gain (§1212(b)(1)(B), LT-first)
+   * across the whole projection, with no further action needed from this
+   * strategy. Harvested gains ADD to ltcg — genuinely tax-free only within
+   * the 0% bracket; the engine's stacking shows any spillover into 15%
+   * honestly. The basis-reset benefit of gain harvesting (lower FUTURE
+   * gains) is not modeled — the shown cost is the conservative view.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -151,7 +154,8 @@ TSIQ.strategyModules.push({
       if (newLtcg < floor) {
         notes.push('Net capital loss limited to ' + TSIQ.fmt.usd(-floor) +
           ' against ordinary income (§1211(b)); ' + TSIQ.fmt.usd(floor - newLtcg) +
-          ' carries forward (carryforward years not modeled).');
+          ' carries forward and is applied against future years\' long-term gains ' +
+          'automatically across this projection (§1212(b)).');
       }
       p.ltcg = newLtcg;
       notes.push(TSIQ.fmt.usd(losses) + ' of losses harvested against capital gains. ' +

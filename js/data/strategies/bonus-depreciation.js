@@ -112,7 +112,13 @@ TSIQ.strategyModules.push({
   inputs: [
     { key: 'eligibleBasis', label: 'Eligible property basis placed in service', type: 'currency', default: 100000 },
     { key: 'targetIncome', label: 'Where the asset is used', type: 'select', default: 'business',
-      options: [{ value: 'business', label: 'Business (Sch C / K-1)' }, { value: 'rental', label: 'Rental (Sch E)' }] }
+      options: [{ value: 'business', label: 'Business (Sch C / K-1)' }, { value: 'rental', label: 'Rental (Sch E)' }] },
+    { key: 'classLife', label: 'MACRS class life (baseline comparison)', type: 'select', default: '7',
+      options: [
+        { value: '5', label: '5-year (autos, computers, light equipment)' },
+        { value: '7', label: '7-year (most machinery & equipment, furniture)' },
+        { value: '15', label: '15-year (land improvements, QIP)' }
+      ] }
   ],
 
   appliesTo: function (profile) {
@@ -121,12 +127,14 @@ TSIQ.strategyModules.push({
 
   /**
    * Model vs. baseline: the baseline is assumed to depreciate the asset
-   * straight-line over 7 years (a simplification — real classes are 5/7/15-yr
-   * MACRS with conventions; 27.5-yr building components belong to the cost
-   * segregation strategy, not here). Bonus takes it all in year 1, so:
-   *   Year 1: extra deduction = basis − (basis / 7)
-   *   Years 2–7: income is HIGHER than baseline by basis / 7 (the straight-
-   *   line slice was already used up). Give-back stops after year 7.
+   * straight-line over the selected MACRS class life (SF7: 5/7/15-year,
+   * `params.classLife` — no state needed, apply() receives params every
+   * year; 27.5-yr building components belong to the cost segregation
+   * strategy, not here). Bonus takes it all in year 1, so:
+   *   Year 1: extra deduction = basis − (basis / classLife)
+   *   Years 2–classLife: income is HIGHER than baseline by basis / classLife
+   *   (the straight-line slice was already used up). Give-back stops after
+   *   that class life.
    * Business dollars route to scheduleCNet first (also saves SE tax) and fall
    * back to passthroughK1; the route is fixed in year 1 via state so the
    * give-back follows the same stream.
@@ -134,7 +142,7 @@ TSIQ.strategyModules.push({
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
-    var recovery = 7; // simplified single recovery period — see comment above
+    var recovery = parseInt(params.classLife, 10) || 7; // SF7: selected MACRS class life
     var basis = params.eligibleBasis || 0;
     var sl = basis / recovery;
 
@@ -163,7 +171,7 @@ TSIQ.strategyModules.push({
       state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (basis - sl);
       notes.push('Year 1: ' + TSIQ.fmt.usd(basis) + ' deducted at 100% bonus (§168(k)); ' +
         'modeled net of the ' + TSIQ.fmt.usd(sl) + ' straight-line deduction the baseline ' +
-        'would have taken. Simplified to a 7-year class life.');
+        'would have taken over a ' + recovery + '-year class life.');
       if (route === 'rentalNet' && !p.rentalLossesUsable) {
         notes.push('Rental losses flagged NOT currently usable (§469) — a bonus-created ' +
           'loss would be suspended. Consider the §168(k)(7) election OUT for this class, ' +

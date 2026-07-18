@@ -200,6 +200,17 @@ window.TSIQ = window.TSIQ || {};
       corpTaxPaid: 0,    // entity-level federal tax (C-corp conversion strategy)
       otherTaxes: 0,     // additional payroll/other federal taxes strategies create
                          // (e.g., FICA on kids' S-corp wages)
+      entityStateTax: 0, // SF1: entity-level STATE tax strategies create — a
+                         // C-corp's retained profit owes state corporate
+                         // income tax same as federal, and some states levy a
+                         // separate S-corp entity tax (CA 1.5%, NH BPT/BET,
+                         // TN excise, NYC) on top of the owner's personal
+                         // pass-through state tax already captured above.
+      stateIncomeAddBack: 0, // SF2: generic hook for income a strategy
+                         // excludes/reduces federally but that a nonconforming
+                         // STATE still taxes (e.g. QSBS §1202 gain in CA/PA/
+                         // AL/MS) — same "federal deduction, state add-back"
+                         // pattern as ptetDeducted, just not PTET-specific.
       rothConversionIncome: 0  // Roth conversion amount (§408A(d)(3)/§402A(c)(4)):
                          // ordinary income, but excluded from the NIIT `nii` base
                          // (§1411(c)(5) — a conversion raises MAGI but is not
@@ -316,7 +327,7 @@ window.TSIQ = window.TSIQ || {};
     // than allowing a second personal deduction) — PTET paid then credits
     // against that gross liability, so the owner's state bill stays flat
     // when the PTET rate matches the state rate, exactly as advertised. ----
-    var stateTaxGross = Math.max(0, agi + p.ptetDeducted) * p.stateRate;
+    var stateTaxGross = Math.max(0, agi + p.ptetDeducted + p.stateIncomeAddBack) * p.stateRate;
     var personalStateTax = Math.max(0, stateTaxGross - p.ptetPaid);
     // Most states don't refund PTET credit beyond the liability it offsets —
     // surface any over-remittance instead of silently discarding it.
@@ -429,7 +440,7 @@ window.TSIQ = window.TSIQ || {};
 
     var totalFederal = incomeTax + seTax + addlMedicare + niit + ownerPayrollTax +
       p.corpTaxPaid + p.otherTaxes - excessSSCredit - actcAllowed;
-    var totalState = personalStateTax + p.ptetPaid;
+    var totalState = personalStateTax + p.ptetPaid + p.entityStateTax;
     var totalBurden = totalFederal + totalState;
 
     // ---- Payments to date → remaining balance due (current year only;
@@ -453,6 +464,7 @@ window.TSIQ = window.TSIQ || {};
       incomeTaxBeforeCredits: incomeTaxBeforeCredits,
       ctcAllowed: ctcAllowed, actcAllowed: actcAllowed, otherCreditsAllowed: otherCreditsAllowed,
       corpTaxPaid: p.corpTaxPaid, otherTaxes: p.otherTaxes, incomeTax: incomeTax,
+      entityStateTax: p.entityStateTax,
       fedPayments: fedPayments, statePayments: statePayments,
       totalPayments: fedPayments + statePayments,
       fedBalanceDue: fedBalanceDue, stateBalanceDue: stateBalanceDue,

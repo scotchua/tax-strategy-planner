@@ -82,14 +82,14 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## SF. Strategy-math fidelity (existing modeled strategies)
 
-- [ ] **SF1. Model state entity-level tax in c-corp-conversion and s-corp-election.** (M/high)
+- [x] **SF1. Model state entity-level tax in c-corp-conversion and s-corp-election.** (M/high)
   Both remove income from the personal state base with no entity-side state tax, showing phantom
   state savings (the C-corp JSDoc even admits it, with no user-facing note). Add a
   `corpStateRatePct` input (default = personal state rate, editable to 0 — WY/SD/NV have no
   corporate income tax; TX/OH/WA use gross-receipts taxes), deductible against the 21% federal
   base, routed into `otherTaxes`/state totals. Label it a starting-point estimate.
 
-- [ ] **SF2. QSBS state-conformity input.** (S/high)
+- [x] **SF2. QSBS state-conformity input.** (S/high)
   `qsbs-1202.js` reduces `ltcg` and the flat state rate then shows phantom **state** savings in
   nonconforming states — $200,000 on the default $2M exclusion at a 10% rate. Add a
   `stateConforms` select backed by a generic state add-back field (the exact pattern
@@ -103,27 +103,27 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   horizon); apply at applyOrder 89–90 (**88 collides with ptet.js**) so it stacks after every
   deduction strategy; route through EN2's `rothConversionIncome`.
 
-- [ ] **SF4. SECURE 2.0 catch-up fidelity.** (S/medium)
+- [x] **SF4. SECURE 2.0 catch-up fidelity.** (S/medium)
   Three gaps with constants already sitting in the tables: (1) the 60–63 enhanced catch-up
   ($11,250) — solo-401k's binary 50+ select understates 60–63 owners by $3,250 × marginal rate;
   (2) the §414(v)(7) mandatory-Roth catch-up for owners with **prior-year** FICA wages > $150k
   (deferral still counts against the raised §415(c) cap per §414(v)(3) — Roth designation changes
   deductibility only, not limit accounting); (3) the SIMPLE age-50 catch-up ($4,000).
 
-- [ ] **SF5. Track the §1212(b) capital-loss carryforward through the projection.** (M/medium)
+- [x] **SF5. Track the §1212(b) capital-loss carryforward through the projection.** (M/medium)
   The engine reports `capitalLossDisallowed` then drops it; harvested losses beyond $3k
   evaporate, understating gain-loss-harvesting. Mirror the `state.suspendedRentalLoss` trio.
   Carryforwards retain ST/LT character — either two buckets or one bucket applied LT-first (the
   conservative, benefit-understating order) with a note saying so.
 
-- [ ] **SF6. profit-sharing-new-comparability: cap owner allocation at compensation.** (S/medium)
+- [x] **SF6. profit-sharing-new-comparability: cap owner allocation at compensation.** (S/medium)
   §415(c) is the lesser of $72,000 or 100% of comp, and §404(a)(3) limits the deduction to 25%
   of pay — an S-corp owner with $60k wages can currently model an unlawful $72k allocation.
   `ownerComp = ownerWages > 0 ? min(ownerWages, §401(a)(17) $360k) : min(scheduleCNet × .9235, $360k)`;
   warn at ~20% of net SE earnings for the SE case (§404(a)(8) circularity), 25% for W-2; guard
   the zero-comp case with a refusal note.
 
-- [ ] **SF7. bonus-depreciation / section-179: class-life select (5/7/15-year).** (S/low)
+- [x] **SF7. bonus-depreciation / section-179: class-life select (5/7/15-year).** (S/low)
   Both hard-code a 7-year SL baseline; for 5-year property year-1 benefit is overstated ≈5.7% of
   basis. Add a `classLife` select; give-back years can read `params.classLife` directly (no state
   needed — apply() receives params every year). Update the year-1 note text to name the class.

@@ -101,7 +101,8 @@ TSIQ.strategyModules.push({
 
   inputs: [
     { key: 'salary', label: 'Reasonable compensation (W-2 salary)', type: 'currency', default: 80000, grows: true },
-    { key: 'adminCost', label: 'Annual payroll + 1120-S compliance cost', type: 'currency', default: 2500, grows: true }
+    { key: 'adminCost', label: 'Annual payroll + 1120-S compliance cost', type: 'currency', default: 2500, grows: true },
+    { key: 'entityStateTaxPct', label: 'Separate state entity-level tax on S-corp income (%) — 0 for most states; e.g. CA 1.5%', type: 'percent', default: 0 }
   ],
 
   suggest: function (p) {
@@ -119,6 +120,12 @@ TSIQ.strategyModules.push({
    * profit. Employer FICA and admin costs are deducted from entity profit.
    * The engine then charges payroll tax (both halves) on ownerWages instead
    * of SE tax, and gives the profit QBI treatment with W-2 wage support.
+   * SF1: the pass-through profit still bears the owner's ordinary personal
+   * state tax via passthroughK1 (no change there) — but a handful of states
+   * ALSO levy a separate entity-level tax on S-corp income on top of that
+   * (CA 1.5% franchise tax, NH BPT/BET, TN excise tax, NYC corporate tax).
+   * `entityStateTaxPct` models that add-on cost; it defaults to 0 since most
+   * states don't impose one.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -142,10 +149,13 @@ TSIQ.strategyModules.push({
     var employerFICA = Math.min(salary, f.ssWageBase) * (f.ssRate / 2) +
       salary * (f.medicareRate / 2);
     var entityProfit = p.scheduleCNet - salary - employerFICA - (params.adminCost || 0);
+    var entityStateRate = (params.entityStateTaxPct || 0) / 100;
+    var entityStateTax = Math.max(0, entityProfit) * entityStateRate;
 
     p.ownerWages = (p.ownerWages || 0) + salary;
     p.entityW2Wages = (p.entityW2Wages || 0) + salary;
     p.passthroughK1 = (p.passthroughK1 || 0) + entityProfit;
+    p.entityStateTax = (p.entityStateTax || 0) + entityStateTax;
     p.scheduleCNet = 0;
 
     if (yearIndex === 0) {
@@ -159,6 +169,12 @@ TSIQ.strategyModules.push({
         notes.push('Salary is under 25% of business profit — a low salary relative to profit ' +
           'is the classic reasonable-compensation exam target (Watson). Support the figure ' +
           'with a comp study before relying on these numbers.');
+      }
+      if (entityStateTax > 0) {
+        notes.push(TSIQ.fmt.usd(entityStateTax) + ' modeled as a separate state entity-level ' +
+          'tax on S-corp income (' + TSIQ.fmt.pct(entityStateRate) + ' of profit) — check whether ' +
+          'the client\'s state actually imposes one (e.g. CA 1.5%, NH BPT/BET, TN excise, NYC) ' +
+          'before relying on this figure.');
       }
     }
     return { profile: p, notes: notes };

@@ -218,6 +218,10 @@ TSIQ.TABLES_2026 = {
       electiveDeferral401k: 24500,       // §402(g)
       catchUp50: 8000,                   // age 50+ (must be Roth if prior-yr FICA wages > $150k)
       catchUp60to63: 11250,              // SECURE 2.0 enhanced catch-up
+      rothCatchupWageThreshold: 150000,  // SECURE 2.0 §603 (§414(v)(7)): catch-up must be
+                                          // designated Roth if the participant's PRIOR-YEAR
+                                          // FICA wages from this employer exceeded this
+                                          // (indexed) threshold — 2026 figure per Notice 2025-67
       dcAnnualAdditions: 72000,          // §415(c) — also the SEP cap
       dbAnnualBenefit: 290000,           // §415(b) defined benefit limit
       compensationLimit: 360000,         // §401(a)(17)

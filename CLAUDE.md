@@ -156,13 +156,6 @@ the fine print together if you close one of these gaps:
   crosses a materiality threshold — but no actual recapture tax is ever
   computed, even at a modeled disposition (there is no disposition/sale
   event in this tool at all).
-- **§461(l) excess business loss** — not modeled as a disallowance/NOL
-  carryforward (the loss still fully offsets other income in the model).
-  `tax-engine.js`'s `computeYear` DOES compute the exposure
-  (`excessBusinessLoss` field) and `scenario-engine.js` raises a quantified
-  note whenever a year's aggregate business loss (scheduleCNet +
-  passthroughK1 + rentalNet, if negative) crosses the 2026 threshold
-  ($256,000 single/HoH/MFS, $512,000 MFJ — Rev. Proc. 2025-32 §4.31).
 - **Rental income never enters the §199A QBI calculation** — real rental
   activity CAN generate QBI (rising to a §162 trade/business, or via the
   Rev. Proc. 2019-38 safe harbor), but `qbiDeduction()` in `tax-engine.js`
@@ -170,15 +163,27 @@ the fine print together if you close one of these gaps:
 - **QBI's 25%-of-wages + 2.5%-of-UBIA alternative limitation is absent** —
   only the 50%-of-wages prong is modeled (`entityW2Wages` × 50%); a client
   with substantial qualified property and modest wages is understated.
-- **Projection years 2+ apply 2026 LAW and 2026 DOLLAR THRESHOLDS to every
-  year shown** — brackets, phase-outs, and breakpoints are never
-  inflation-indexed forward, so a multi-year projection is not literally
-  "what the return will say" in year 3, 5, 10 — it is 2026 law replayed at
-  a grown income. This is a deliberate simplification (indexing would
-  require guessing a future CPI assumption), disclosed in the fine print
-  and the client PDF's outlook-page disclaimer.
+- **Projection years 2+ apply 2026 DOLLAR THRESHOLDS to every year shown,
+  never inflation-indexed forward** — enacted sunset dates ARE modeled
+  (`projTaxYear`, threaded per year by `scenario-engine.js`: e.g. the OBBBA
+  senior deduction expires after 2028, the enhanced SALT cap reverts to a
+  flat $10k/$5k after 2029 — see `saltCapForYear()` in `tax-engine.js`), but
+  every bracket, threshold, and breakpoint stays at its 2026 dollar figure
+  for the whole projection — a multi-year projection is not literally "what
+  the return will say" in year 5 or 10, since real brackets would have
+  drifted with inflation by then. Indexing would require guessing a future
+  CPI assumption, so this is a deliberate simplification, disclosed in the
+  fine print and the client PDF's outlook-page disclaimer.
 - **State tax** — flat effective rate the advisor enters; no state-specific
-  bracket/credit modeling.
+  bracket/credit modeling. An optional entity-level state rate can be
+  layered on top for the C-corp/S-corp strategies (`corpStateRatePct` /
+  `entityStateTaxPct`), and QSBS has a nonconforming-state add-back
+  (`stateIncomeAddBack`) — both are flat-rate starting-point estimates, not
+  apportioned multi-state computations.
+- **Medicare IRMAA surcharges** — flagged as a quantified NOTE only
+  (`scenario-engine.js`, gated on `age65Count > 0`) when a projection year's
+  MAGI crosses a 2026 CMS tier; the surcharge itself is never added to any
+  total — it's a Medicare premium impact, not a tax.
 
 If the calendar year moves past `TSIQ.TABLES_2026.taxYear`, `app.js`'s
 `checkLawStaleness()` shows a persistent banner and appends a warning to

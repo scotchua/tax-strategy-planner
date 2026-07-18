@@ -109,7 +109,13 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'amount', label: 'Amount elected under §179', type: 'currency', default: 100000 }
+    { key: 'amount', label: 'Amount elected under §179', type: 'currency', default: 100000 },
+    { key: 'classLife', label: 'MACRS class life (baseline comparison)', type: 'select', default: '7',
+      options: [
+        { value: '5', label: '5-year (autos, computers, light equipment)' },
+        { value: '7', label: '7-year (most machinery & equipment, furniture)' },
+        { value: '15', label: '15-year (land improvements, QIP, §179(f) real property)' }
+      ] }
   ],
 
   appliesTo: function (profile) {
@@ -118,10 +124,12 @@ TSIQ.strategyModules.push({
 
   /**
    * Model vs. baseline: baseline is assumed to depreciate the asset straight-
-   * line over 7 years (simplification — same convention as the bonus
-   * depreciation strategy). §179 takes it all in year 1:
-   *   Year 1: extra deduction = allowed − (allowed / 7)
-   *   Years 2–7: income HIGHER than baseline by allowed / 7; stops after yr 7.
+   * line over the selected MACRS class life (SF7: 5/7/15-year,
+   * `params.classLife` — read fresh every year, no state needed). §179
+   * takes it all in year 1:
+   *   Year 1: extra deduction = allowed − (allowed / classLife)
+   *   Years 2–classLife: income HIGHER than baseline by allowed / classLife;
+   *   stops after that class life.
    * The election is capped at the 2026 statutory limit and at the routed
    * income stream (a single-stream simplification of the §179(b)(3) aggregate
    * business-income limit); the excess carryforward is NOT modeled — noted.
@@ -131,7 +139,7 @@ TSIQ.strategyModules.push({
     var p = Object.assign({}, profile);
     var notes = [];
     var tb = TSIQ.TABLES_2026;
-    var recovery = 7; // simplified class life — see comment above
+    var recovery = parseInt(params.classLife, 10) || 7; // SF7: selected MACRS class life
 
     if (yearIndex === 0) {
       var elected = params.amount || 0;
@@ -169,7 +177,7 @@ TSIQ.strategyModules.push({
       state.sec179Allowed = allowed;
       notes.push('Year 1: ' + TSIQ.fmt.usd(allowed) + ' expensed under §179, modeled ' +
         'net of the ' + TSIQ.fmt.usd(sl) + ' straight-line deduction the baseline would ' +
-        'have taken (simplified 7-year class life).');
+        'have taken over a ' + recovery + '-year class life.');
     } else if (yearIndex >= 1 && yearIndex <= recovery - 1 && state.sec179Route && state.sec179Route !== 'none') {
       // Baseline still deducts the straight-line slice; §179 used it up.
       p[state.sec179Route] = p[state.sec179Route] + (state.sec179Allowed / recovery);
