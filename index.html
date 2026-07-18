@@ -18,14 +18,14 @@
   <button id="brand-settings-btn">Brand Settings</button>
 </header>
 
-<nav class="tab-bar">
-  <button class="tab-btn active" data-tab="tab-builder">Plan Builder</button>
-  <button class="tab-btn" data-tab="tab-library">Strategy Library <span id="lib-count"></span></button>
+<nav class="tab-bar" role="tablist">
+  <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-builder" id="tab-btn-builder" data-tab="tab-builder">Plan Builder</button>
+  <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-library" id="tab-btn-library" data-tab="tab-library">Strategy Library <span id="lib-count"></span></button>
 </nav>
 
 <main>
 
-<div id="tab-builder" class="tab-page">
+<div id="tab-builder" class="tab-page" role="tabpanel" aria-labelledby="tab-btn-builder">
 
   <!-- ======================= 1. CLIENT TAX DATA ======================= -->
   <section class="panel">
@@ -163,14 +163,15 @@
 
 </div><!-- /tab-builder -->
 
-<div id="tab-library" class="tab-page" style="display:none">
+<div id="tab-library" class="tab-page" role="tabpanel" aria-labelledby="tab-btn-library" style="display:none">
 
   <!-- ======================= STRATEGY LIBRARY ======================= -->
   <section class="panel">
     <h2>Strategy Library</h2>
     <p class="hint">Click a card for the advisor-facing technical detail (mechanics, IRC citations, case law, risks, implementation), or open the client-facing handout as a PDF. "Advisory" strategies appear in plan documents but don't change scenario math.</p>
-    <input id="library-search" type="search" placeholder="Search strategies&hellip; (name, topic, code section)">
+    <input id="library-search" type="search" placeholder="Search strategies&hellip; (name, topic, code section)" aria-label="Search strategies">
     <div id="library-cards"></div>
+    <p id="library-empty" class="hint" style="display:none">No strategies match your search — try a code section (e.g. 199A) or a shorter term.</p>
   </section>
 
 </div><!-- /tab-library -->
@@ -178,21 +179,21 @@
 </main>
 
 <!-- advisor detail modal -->
-<div id="detail-modal"><div class="modal-card">
+<dialog id="detail-modal" aria-labelledby="detail-body"><div class="modal-card">
   <button id="detail-close" class="modal-close">Close &times;</button>
   <div id="detail-body"></div>
-</div></div>
+</div></dialog>
 
 <!-- PDF return import review modal — nothing touches the form until Apply -->
-<div id="pdf-review-modal"><div class="modal-card">
+<dialog id="pdf-review-modal"><div class="modal-card">
   <button id="pdf-review-close" class="modal-close">Close &times;</button>
   <div id="pdf-review-body"></div>
-</div></div>
+</div></dialog>
 
 <!-- brand settings modal (white-label: firm name, color, logo) -->
-<div id="brand-modal"><div class="modal-card narrow">
+<dialog id="brand-modal" aria-labelledby="brand-modal-title"><div class="modal-card narrow">
   <button id="brand-close" class="modal-close">Close &times;</button>
-  <h2 style="font-weight:500;margin-bottom:6px">Brand Settings</h2>
+  <h2 id="brand-modal-title" style="font-weight:500;margin-bottom:6px">Brand Settings</h2>
   <p class="hint" style="color:var(--muted);font-size:13px;margin-bottom:20px">Your firm's name, color, and logo flow through the app, client PDFs, slideshows, and pitch decks. Saved on this computer.</p>
   <div class="brand-field">
     <label for="brand-name-input">Firm name</label>
@@ -202,12 +203,12 @@
     <label for="brand-color-input">Brand color</label>
     <input id="brand-color-input" type="color" value="#8a6d3b">
     <div class="brand-swatches">
-      <span class="swatch" data-color="#8a6d3b" style="background:#8a6d3b"></span>
-      <span class="swatch" data-color="#1e5e8a" style="background:#1e5e8a"></span>
-      <span class="swatch" data-color="#166a4b" style="background:#166a4b"></span>
-      <span class="swatch" data-color="#7a2e4d" style="background:#7a2e4d"></span>
-      <span class="swatch" data-color="#54488a" style="background:#54488a"></span>
-      <span class="swatch" data-color="#b3541e" style="background:#b3541e"></span>
+      <button type="button" class="swatch" data-color="#8a6d3b" style="background:#8a6d3b" aria-label="Bronze #8a6d3b"></button>
+      <button type="button" class="swatch" data-color="#1e5e8a" style="background:#1e5e8a" aria-label="Blue #1e5e8a"></button>
+      <button type="button" class="swatch" data-color="#166a4b" style="background:#166a4b" aria-label="Green #166a4b"></button>
+      <button type="button" class="swatch" data-color="#7a2e4d" style="background:#7a2e4d" aria-label="Maroon #7a2e4d"></button>
+      <button type="button" class="swatch" data-color="#54488a" style="background:#54488a" aria-label="Purple #54488a"></button>
+      <button type="button" class="swatch" data-color="#b3541e" style="background:#b3541e" aria-label="Orange #b3541e"></button>
     </div>
   </div>
   <div class="brand-field">
@@ -219,7 +220,7 @@
     <button class="primary" id="brand-save">Save</button>
     <button class="secondary" id="brand-reset">Reset to default</button>
   </div>
-</div></div>
+</div></dialog>
 
 <!-- Load order matters: tables → strategies → registry → engine → renderers → app -->
 <script src="js/data/tax-tables-2026.js"></script>
@@ -330,9 +331,10 @@
 <script src="js/engine/scenario-engine.js"></script>
 <script src="js/engine/suggest.js"></script>
 <!-- Vendored Mozilla pdf.js (js/vendor/) — direct, no-AI PDF return import.
-     Worker loaded as a plain script so file:// use falls back gracefully. -->
-<script src="js/vendor/pdf.min.js"></script>
-<script src="js/vendor/pdf.worker.min.js"></script>
+     Lazy-loaded on first use (see app.js loadPdfJs()) — it's the largest
+     asset in the app and most sessions never import a PDF. Worker is
+     injected as a plain script (not a Worker thread) so file:// use falls
+     back gracefully. -->
 <script src="js/engine/return-parser.js"></script>
 <script src="js/renderers/advisor.js"></script>
 <script src="js/renderers/client-report.js"></script>

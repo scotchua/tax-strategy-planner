@@ -16,7 +16,7 @@ TSIQ.render = TSIQ.render || {};
     '.page{padding:0.9in 0.85in;page-break-after:always}' +
     '.page:last-child{page-break-after:auto}' +
     '.cover{display:flex;flex-direction:column;justify-content:center;min-height:9in;text-align:center}' +
-    '.cover .firm{font-size:13pt;letter-spacing:3px;text-transform:uppercase;color:#8a6d3b;margin-bottom:24px}' +
+    '.cover .firm{font-size:13pt;letter-spacing:3px;text-transform:uppercase;color:%ACCENT_TEXT%;margin-bottom:24px}' +
     '.cover h1{font-size:30pt;font-weight:normal;margin-bottom:12px}' +
     '.cover .client{font-size:17pt;color:#445;margin-bottom:40px}' +
     '.cover .date{color:#667;font-size:11pt}' +
@@ -24,7 +24,7 @@ TSIQ.render = TSIQ.render || {};
     'h3{font-size:13pt;margin:16px 0 8px;color:#2c3e50}' +
     'p{margin-bottom:10px}' +
     'ul{margin:6px 0 12px 22px}li{margin-bottom:5px}' +
-    '.headline{font-size:15pt;color:#8a6d3b;font-style:italic;margin-bottom:12px}' +
+    '.headline{font-size:15pt;color:%ACCENT_TEXT%;font-style:italic;margin-bottom:12px}' +
     '.analogy{background:#f7f4ee;border-left:4px solid #8a6d3b;padding:12px 16px;margin:14px 0;font-style:italic}' +
     'table{width:100%;border-collapse:collapse;margin:12px 0;font-size:10.5pt}' +
     'th,td{padding:7px 10px;border-bottom:1px solid #d8d8d8;text-align:right}' +
@@ -37,7 +37,14 @@ TSIQ.render = TSIQ.render || {};
     '.big-number .amount{font-size:34pt;color:#1e7e34}' +
     '.big-number .label{font-family:Arial,sans-serif;font-size:10pt;text-transform:uppercase;letter-spacing:1.5px;color:#667}' +
     '.disclaimer{font-size:9pt;color:#778;border-top:1px solid #ccc;padding-top:10px;margin-top:26px}' +
-    '@media print{.page{padding:0.25in 0.15in}}';
+    // @page sets the sheet margin explicitly so the deliverable doesn't
+    // depend on whatever margin setting the browser's print dialog happens
+    // to have (commonly "None" when saving to PDF, which previously left
+    // only 0.15in of margin); table/tr avoid breaking mid-row across pages.
+    '@page{size:letter;margin:0.75in}' +
+    '@media print{.page{padding:0}' +
+    'table{page-break-inside:auto;break-inside:auto}' +
+    'tr{page-break-inside:avoid;break-inside:avoid}}';
 
   function scenarioLabel(sc) { return sc.label; }
 
@@ -48,8 +55,26 @@ TSIQ.render = TSIQ.render || {};
     var color = TSIQ.brand && TSIQ.brand.color;
     return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : '#8a6d3b';
   }
+  // WCAG relative luminance -> darken a too-light brand color until it
+  // reads at roughly 4.5:1 contrast as TEXT on this report's white page.
+  // Mirrors app.js's readableAccentText(); duplicated because this renderer
+  // runs in its own popup window with no shared module to import from.
+  function readableAccentText(hex) {
+    function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    function luminance(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); }
+    var r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255,
+      b = parseInt(hex.slice(5, 7), 16) / 255;
+    var THRESHOLD = 0.18;
+    for (var i = 0; i < 12 && luminance(r, g, b) > THRESHOLD; i++) { r *= 0.88; g *= 0.88; b *= 0.88; }
+    function toHex(c) {
+      var h = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
+      return h.length < 2 ? '0' + h : h;
+    }
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  }
   function brandCss() {
-    return REPORT_CSS.split('#8a6d3b').join(safeBrandColor());
+    var color = safeBrandColor();
+    return REPORT_CSS.split('#8a6d3b').join(color).split('%ACCENT_TEXT%').join(readableAccentText(color));
   }
   function brandLogoBlock(marginBottom) {
     var logo = TSIQ.brand && TSIQ.brand.logo;

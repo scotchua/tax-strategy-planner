@@ -10,7 +10,9 @@
   --muted: #64748b;
   --line: #e2e8f0;
   --line-soft: #eef2f6;
-  --accent: #8a6d3b;       /* themeable brand color */
+  --accent: #8a6d3b;       /* themeable brand color — fills, borders, focus rings */
+  --accent-text: #8a6d3b; /* text-on-light variant — JS darkens this if the brand
+                              color is too light to read as text on white (contrast guard) */
   --accent-soft: color-mix(in srgb, var(--accent) 12%, white);
   --green: #15803d;
   --green-soft: #f0faf3;
@@ -23,7 +25,7 @@
   --radius: 12px;
 }
 
-html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
   color: var(--ink); background: var(--bg); line-height: 1.55;
@@ -78,7 +80,7 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
   background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, white);
   border-radius: var(--radius); padding: 18px 22px; margin: 14px 0 20px;
 }
-.suggest-box h3 { font-size: 13px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.8px; color: var(--accent); margin-bottom: 8px; }
+.suggest-box h3 { font-size: 13px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.8px; color: var(--accent-text); margin-bottom: 8px; }
 .suggest-box .hint { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
 .suggest-box ul { margin: 0 0 12px 20px; font-size: 13.5px; }
 .suggest-box li { margin-bottom: 6px; }
@@ -110,7 +112,7 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
 .form-group:first-of-type { border-top: none; margin-top: 0; padding-top: 4px; }
 .group-title {
   font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: 1.2px;
-  color: var(--accent); margin-bottom: 14px;
+  color: var(--accent-text); margin-bottom: 14px;
 }
 
 /* --------------------------- strategy library --------------------------- */
@@ -121,7 +123,7 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
 .lib-category { margin-bottom: 26px; }
 .lib-cat-title {
   font-size: 12.5px; font-weight: 750; text-transform: uppercase; letter-spacing: 1.2px;
-  color: var(--accent); margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px;
+  color: var(--accent-text); margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px;
 }
 .lib-cat-title .count, .pick-category .count { color: var(--muted); font-weight: 450; }
 .lib-cat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
@@ -134,7 +136,7 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
 .strategy-card h4 { margin: 10px 0 6px; font-size: 15.5px; font-weight: 650; letter-spacing: -0.1px; }
 .strategy-card p { font-size: 13px; color: var(--muted); flex: 1; }
 .category-badge {
-  display: inline-block; background: var(--accent-soft); color: var(--accent);
+  display: inline-block; background: var(--accent-soft); color: var(--accent-text);
   font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.7px;
   padding: 3px 10px; border-radius: 20px;
 }
@@ -143,9 +145,13 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
   text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 9px; border-radius: 20px; margin-left: 6px;
 }
 .card-actions { display: flex; gap: 18px; align-items: baseline; margin-top: 12px; }
-.strategy-card .link { font-size: 13px; color: var(--accent); font-weight: 650; }
+.strategy-card .link {
+  font-size: 13px; color: var(--accent-text); font-weight: 650; background: none; border: none;
+  padding: 0; font-family: inherit; cursor: pointer;
+}
 .card-actions .card-pdf { color: #4a6a8a; }
 .card-actions .link:hover { text-decoration: underline; }
+.card-actions .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 
 /* --------------------------- scenario builders -------------------------- */
 .scenarios { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
@@ -160,7 +166,7 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
   cursor: pointer; padding: 10px 0; text-transform: uppercase; letter-spacing: 0.8px;
   font-size: 12px; font-weight: 750; color: var(--ink-2); list-style-position: inside; transition: color .15s;
 }
-.pick-category summary:hover { color: var(--accent); }
+.pick-category summary:hover { color: var(--accent-text); }
 .strategy-pick { border-top: 1px dashed var(--line-soft); padding: 9px 0 9px 8px; }
 .pick-label { font-size: 14px; font-weight: 550; cursor: pointer; display: flex; gap: 9px; align-items: center; }
 .pick-label input { width: 16px; height: 16px; accent-color: var(--accent); }
@@ -183,7 +189,7 @@ button.secondary {
   background: #fff; color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px;
   padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s;
 }
-button.secondary:hover { border-color: var(--accent); color: var(--accent); }
+button.secondary:hover { border-color: var(--accent); color: var(--accent-text); }
 .fee-group { display: flex; gap: 12px; align-items: flex-end; margin-left: auto; padding-left: 16px; border-left: 1px solid var(--line); }
 .fee-field label { display: block; font-size: 10.5px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
 .fee-field input { width: 130px; padding: 9px 11px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 14px; text-align: right; }
@@ -237,6 +243,7 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent); }
   border: 1px solid #bfe8cd; font-size: 11.5px; font-weight: 750; padding: 1px 8px; border-radius: 20px;
 }
 
+.table-scroll { overflow-x: auto; margin: 0 0 4px; }
 .results-table { width: 100%; border-collapse: collapse; margin: 10px 0 28px; font-size: 14px; }
 .results-table th, .results-table td { padding: 9px 13px; text-align: right; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
 .results-table th:first-child, .results-table td:first-child { text-align: left; }
@@ -255,8 +262,20 @@ ul.notes li { margin-bottom: 6px; }
 .fine-print { font-size: 12px; color: var(--muted); margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
 
 /* -------------------------------- modals -------------------------------- */
-#detail-modal, #brand-modal, #pdf-review-modal { display: none; position: fixed; inset: 0; background: rgba(16,24,34,.58); z-index: 50; padding: 4vh 4vw; backdrop-filter: blur(2px); }
-#detail-modal.open, #brand-modal.open, #pdf-review-modal.open { display: flex; justify-content: center; align-items: flex-start; }
+/* Native <dialog>: showModal()/close() in JS provide focus trapping,
+   Escape-to-close, and top-layer stacking for free. The dialog element
+   itself is just a transparent flex-centering box; ::backdrop draws the
+   dimmed overlay (previously done by a manually-toggled div). */
+#detail-modal, #brand-modal, #pdf-review-modal {
+  border: none; background: transparent; padding: 4vh 4vw; margin: 0; inset: 0;
+  max-width: 100vw; max-height: 100vh; width: 100%; height: 100%;
+}
+#detail-modal[open], #brand-modal[open], #pdf-review-modal[open] {
+  display: flex; justify-content: center; align-items: flex-start;
+}
+#detail-modal::backdrop, #brand-modal::backdrop, #pdf-review-modal::backdrop {
+  background: rgba(16,24,34,.58); backdrop-filter: blur(2px);
+}
 .modal-card {
   background: #fff; border-radius: 14px; max-width: 920px; width: 100%; max-height: 92vh;
   overflow-y: auto; padding: 32px 38px; position: relative; box-shadow: var(--shadow-lg);
@@ -268,7 +287,7 @@ ul.notes li { margin-bottom: 6px; }
 }
 .advisor-detail h2 { font-weight: 500; margin: 10px 0 18px; font-size: 24px; }
 .advisor-detail section { margin-bottom: 22px; }
-.advisor-detail h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 8px; font-weight: 750; }
+.advisor-detail h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-text); margin-bottom: 8px; font-weight: 750; }
 .advisor-detail ul { margin-left: 20px; font-size: 14px; }
 .advisor-detail li { margin-bottom: 6px; }
 .advisor-detail p { font-size: 14.5px; }
@@ -277,7 +296,7 @@ ul.notes li { margin-bottom: 6px; }
 .authority-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .authority-table th, .authority-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
 .authority-table thead th { font-size: 10.5px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
-.auth-type { white-space: nowrap; color: var(--accent); font-weight: 750; }
+.auth-type { white-space: nowrap; color: var(--accent-text); font-weight: 750; }
 .auth-cite { font-weight: 650; min-width: 180px; }
 
 /* brand settings modal fields */
@@ -286,8 +305,12 @@ ul.notes li { margin-bottom: 6px; }
 .brand-field input[type="text"] { width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 15px; font-family: inherit; }
 .brand-field input[type="color"] { width: 64px; height: 38px; border: 1.5px solid var(--line); border-radius: 8px; cursor: pointer; padding: 2px; background: #fff; }
 .brand-swatches { display: flex; gap: 8px; margin-top: 8px; }
-.swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 0 0 1.5px var(--line); transition: transform .1s; }
+.swatch {
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #fff;
+  box-shadow: 0 0 0 1.5px var(--line); transition: transform .1s; padding: 0; appearance: none;
+}
 .swatch:hover { transform: scale(1.15); }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #brand-logo-preview { max-height: 50px; max-width: 180px; margin-top: 8px; display: none; border-radius: 6px; }
 #brand-logo-preview.show { display: block; }
 .brand-actions { display: flex; gap: 10px; margin-top: 22px; }

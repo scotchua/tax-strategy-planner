@@ -97,6 +97,16 @@ TSIQ.render = TSIQ.render || {};
 
   // Design tokens per the firm's deck design system. The gold accent follows
   // Brand Settings; the app's generic default maps to the signature gold.
+  // KNOWN GAP: --gold/--gold-300 are used as TEXT both on dark (.s-navy)
+  // slides, where a light custom brand color reads fine, and on light
+  // (.s-white/.s-cream) slides, where the same light color would be
+  // illegible — the contrast guard applied to the live app (app.js
+  // readableAccentText) and the client PDF (client-report.js) was not
+  // extended here: doing so safely needs splitting --gold into on-dark vs.
+  // on-light variants across every usage in this ~450-line template, which
+  // risks making text invisible on the WRONG background if a usage is
+  // misclassified — left for a follow-up with visual regression testing
+  // across brand colors rather than a rushed pass here.
   function stageCss(gold) {
     return '' +
     ':root{--navy:#1B2B3A;--navy-700:#16242F;--navy-900:#0F1A24;--cream:#F5F0E8;' +

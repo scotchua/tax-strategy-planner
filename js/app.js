@@ -7,6 +7,12 @@
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
   var $ = function (id) { return document.getElementById(id); };
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function scrollTo(el) {
+    el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
 
   var lastRun = null; // cache of the latest computation for the renderers
   var resultsStale = false;   // form changed since lastRun was computed
@@ -124,9 +130,31 @@
     } catch (e) { return Object.assign({}, DEFAULT_BRAND); }
   }
 
+  // WCAG relative luminance -> darken a too-light brand color until it
+  // reads at roughly 4.5:1 contrast as TEXT on a white background. Fills/
+  // borders/outlines keep using the raw --accent; only text usages
+  // (--accent-text) get this treatment.
+  function readableAccentText(hex) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+    function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    function luminance(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); }
+    var r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255,
+      b = parseInt(hex.slice(5, 7), 16) / 255;
+    var THRESHOLD = 0.18; // luminance ceiling for >=4.5:1 contrast against white
+    for (var i = 0; i < 12 && luminance(r, g, b) > THRESHOLD; i++) {
+      r *= 0.88; g *= 0.88; b *= 0.88;
+    }
+    function toHex(c) {
+      var h = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
+      return h.length < 2 ? '0' + h : h;
+    }
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  }
+
   function applyBrand(b) {
     TSIQ.brand = b; // renderers read this for PDFs, decks, handouts
     document.documentElement.style.setProperty('--accent', b.color);
+    document.documentElement.style.setProperty('--accent-text', readableAccentText(b.color));
     $('brand-name-display').textContent = b.name;
     document.title = b.name + ' — Tax Strategy Planner';
     var logo = $('brand-logo');
@@ -147,11 +175,11 @@
       var prev = $('brand-logo-preview');
       if (b.logo) { prev.src = b.logo; prev.classList.add('show'); }
       else { prev.removeAttribute('src'); prev.classList.remove('show'); }
-      $('brand-modal').classList.add('open');
+      $('brand-modal').showModal();
     });
-    $('brand-close').addEventListener('click', function () { $('brand-modal').classList.remove('open'); });
+    $('brand-close').addEventListener('click', function () { $('brand-modal').close(); });
     $('brand-modal').addEventListener('click', function (e) {
-      if (e.target === $('brand-modal')) $('brand-modal').classList.remove('open');
+      if (e.target === $('brand-modal')) $('brand-modal').close();
     });
     var swatches = document.querySelectorAll('.swatch');
     for (var i = 0; i < swatches.length; i++) {
@@ -183,13 +211,13 @@
       try { localStorage.setItem('tsiq-brand', JSON.stringify(b)); }
       catch (e) { alert('Logo image is too large to save — try a smaller file (under ~2MB).'); return; }
       applyBrand(b);
-      $('brand-modal').classList.remove('open');
+      $('brand-modal').close();
     });
     $('brand-reset').addEventListener('click', function () {
       localStorage.removeItem('tsiq-brand');
       pendingLogo = null;
       applyBrand(Object.assign({}, DEFAULT_BRAND));
-      $('brand-modal').classList.remove('open');
+      $('brand-modal').close();
     });
   }
 
@@ -222,8 +250,8 @@
       '<h4>' + esc(s.name) + '</h4>' +
       '<p>' + esc(s.advisor.summary.slice(0, 150)) + '&hellip;</p>' +
       '<div class="card-actions">' +
-      '<span class="link card-detail">Technical detail &rarr;</span>' +
-      '<span class="link card-pdf">Client handout (PDF)</span>' +
+      '<button type="button" class="link card-detail">Technical detail &rarr;</button>' +
+      '<button type="button" class="link card-pdf">Client handout (PDF)</button>' +
       '</div></div>';
   }
 
@@ -239,14 +267,18 @@
     $('library-search').addEventListener('input', function (e) {
       var q = e.target.value.trim().toLowerCase();
       var cards = host.querySelectorAll('.strategy-card');
+      var totalVisible = 0;
       for (var i = 0; i < cards.length; i++) {
-        cards[i].style.display = (!q || cards[i].getAttribute('data-search').indexOf(q) > -1) ? '' : 'none';
+        var show = !q || cards[i].getAttribute('data-search').indexOf(q) > -1;
+        cards[i].style.display = show ? '' : 'none';
+        if (show) totalVisible++;
       }
       var groups = host.querySelectorAll('.lib-category');
       for (var g = 0; g < groups.length; g++) {
         var visible = groups[g].querySelectorAll('.strategy-card:not([style*="none"])').length;
         groups[g].style.display = visible ? '' : 'none';
       }
+      $('library-empty').style.display = totalVisible ? 'none' : '';
     });
 
     host.addEventListener('click', function (e) {
@@ -258,13 +290,13 @@
         return;
       }
       $('detail-body').innerHTML = TSIQ.render.advisorDetail(strategy);
-      $('detail-modal').classList.add('open');
+      $('detail-modal').showModal();
     });
     $('detail-close').addEventListener('click', function () {
-      $('detail-modal').classList.remove('open');
+      $('detail-modal').close();
     });
     $('detail-modal').addEventListener('click', function (e) {
-      if (e.target === $('detail-modal')) $('detail-modal').classList.remove('open');
+      if (e.target === $('detail-modal')) $('detail-modal').close();
     });
   }
 
@@ -443,7 +475,7 @@
       }).join('') + '</div>';
 
     html += '<h3>First-Year Comparison (Tax Year ' + TSIQ.TABLES_2026.taxYear + ')</h3>' +
-      '<table class="results-table"><thead><tr><th></th>' +
+      '<div class="table-scroll"><table class="results-table"><thead><tr><th></th>' +
       cols.map(function (c) { return '<th>' + esc(c.label) + '</th>'; }).join('') +
       '</tr></thead><tbody>' + detailRows(cols) +
       '<tr class="total-row"><td>Total tax burden</td>' + cols.map(function (c) {
@@ -457,12 +489,12 @@
       }).join('') + '</tr>' +
       '<tr class="due-row"><td>Estimated remaining balance due</td>' + cols.map(function (c) {
         return '<td>' + usd(c.r.totalBalanceDue) + '</td>';
-      }).join('') + '</tr></tbody></table>';
+      }).join('') + '</tr></tbody></table></div>';
 
     // multi-year projection
     html += '<h3>' + run.years + '-Year Projection (' + (run.growthRate * 100).toFixed(1) +
       '% annual income growth)</h3>' +
-      '<table class="results-table"><thead><tr><th>Year</th><th>Baseline</th>' +
+      '<div class="table-scroll"><table class="results-table"><thead><tr><th>Year</th><th>Baseline</th>' +
       run.scenarios.map(function (sc) {
         return '<th>' + esc(sc.label) + '</th><th class="sav">Savings</th>';
       }).join('') + '</tr></thead><tbody>';
@@ -482,7 +514,7 @@
     run.scenarios.forEach(function (sc, i) {
       html += '<td>' + usd(sc.result.totals.totalBurden) + '</td><td class="sav">' + usd(cum[i]) + '</td>';
     });
-    html += '</tr></tbody></table>';
+    html += '</tr></tbody></table></div>';
 
     // planning notes from the strategies + engine
     var allNotes = [];
@@ -512,6 +544,16 @@
   // the final numbers are already in the DOM as fallback text.
   function animateResults() {
     var values = document.querySelectorAll('#results .kpi-value[data-target]');
+    var bars = document.querySelectorAll('#results .bar-fill[data-width]');
+    if (prefersReducedMotion()) {
+      for (var vi = 0; vi < values.length; vi++) {
+        values[vi].textContent = TSIQ.fmt.usd(parseFloat(values[vi].getAttribute('data-target')));
+      }
+      for (var bi = 0; bi < bars.length; bi++) {
+        bars[bi].style.width = bars[bi].getAttribute('data-width') + '%';
+      }
+      return;
+    }
     var start = null, DURATION = 800;
     function frame(ts) {
       if (start === null) start = ts;
@@ -524,7 +566,6 @@
       if (t < 1) requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
-    var bars = document.querySelectorAll('#results .bar-fill[data-width]');
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
         for (var i = 0; i < bars.length; i++) {
@@ -599,7 +640,7 @@
     };
     clearResultsStale();
     renderResults(lastRun);
-    $('results-section').scrollIntoView({ behavior: 'smooth' });
+    scrollTo($('results-section'));
   }
 
   /* --------------------- client file import / export --------------------- */
@@ -736,7 +777,7 @@
           });
           var det = box.closest('details'); if (det) det.open = true;
         });
-        $('sc2-strategies').scrollIntoView({ behavior: 'smooth' });
+        scrollTo($('sc2-strategies'));
       });
     }
   }
@@ -803,14 +844,14 @@
     Object.keys(PDF_FIELD_LABELS).forEach(function (k) {
       if (f[k] === undefined) return;
       if (k === 'filingStatus') {
-        html += '<div class="field"><label>' + PDF_FIELD_LABELS[k] + '</label>' +
+        html += '<div class="field"><label for="pdfr-filingStatus">' + PDF_FIELD_LABELS[k] + '</label>' +
           '<select id="pdfr-filingStatus">' +
           ['mfj', 'single', 'hoh', 'mfs'].map(function (s) {
             return '<option value="' + s + '"' + (f.filingStatus === s ? ' selected' : '') + '>' +
               esc(TSIQ.FILING_STATUS_LABELS[s]) + '</option>';
           }).join('') + '</select></div>';
       } else {
-        html += '<div class="field"><label>' + PDF_FIELD_LABELS[k] + '</label>' +
+        html += '<div class="field"><label for="pdfr-' + k + '">' + PDF_FIELD_LABELS[k] + '</label>' +
           '<input type="number" id="pdfr-' + k + '" value="' + Math.round(f[k]) + '"></div>';
       }
     });
@@ -825,7 +866,7 @@
       ['SE tax (Sch 2)', ref.seTax]
     ].filter(function (r) { return r[1] !== null && r[1] !== undefined; });
     if (refRows.length) {
-      html += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.8px;color:var(--accent);margin-bottom:8px">Cross-check — what the return itself says</h3>' +
+      html += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.8px;color:var(--accent-text);margin-bottom:8px">Cross-check — what the return itself says</h3>' +
         '<table class="results-table" style="margin-bottom:16px"><tbody>' +
         refRows.map(function (r) {
           return '<tr><td>' + esc(r[0]) + '</td><td>' + usd(r[1]) + '</td></tr>';
@@ -854,7 +895,7 @@
     }
 
     if (result.warnings.length) {
-      html += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.8px;color:var(--accent);margin-bottom:8px">Review notes</h3>' +
+      html += '<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.8px;color:var(--accent-text);margin-bottom:8px">Review notes</h3>' +
         '<ul class="notes" style="margin-bottom:18px">' +
         result.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>';
     }
@@ -862,7 +903,7 @@
     html += '<div class="actions"><button class="primary" id="pdfr-apply">Apply to Client Data</button></div>';
 
     $('pdf-review-body').innerHTML = html;
-    $('pdf-review-modal').classList.add('open');
+    $('pdf-review-modal').showModal();
     $('pdfr-apply').addEventListener('click', function () {
       // Reset every field this importer is responsible for FIRST (except
       // filingStatus, which has no safe "reset" value) — a field this PDF
@@ -879,7 +920,7 @@
         var target = $(k);
         if (target) target.value = el.value;
       });
-      $('pdf-review-modal').classList.remove('open');
+      $('pdf-review-modal').close();
       clearLastRunForNewClient();
       formDirty = true;
       runSuggestions(result.warnings);
@@ -896,13 +937,39 @@
     renderSuggestions(suggestions, notes);
   }
 
+  // Lazy-load the vendored pdf.js — it's the largest asset in the app and
+  // most sessions never import a PDF. Injected as plain <script> tags (not
+  // a Worker thread) so file:// use keeps working; cached so repeat imports
+  // in the same session don't re-inject.
+  var pdfJsLoadPromise = null;
+  function loadPdfJs() {
+    if (pdfJsLoadPromise) return pdfJsLoadPromise;
+    if (window.pdfjsLib) { pdfJsLoadPromise = Promise.resolve(); return pdfJsLoadPromise; }
+    pdfJsLoadPromise = new Promise(function (resolve, reject) {
+      var libScript = document.createElement('script');
+      libScript.src = 'js/vendor/pdf.min.js';
+      libScript.onload = function () {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/vendor/pdf.worker.min.js';
+        var workerScript = document.createElement('script');
+        workerScript.src = 'js/vendor/pdf.worker.min.js';
+        workerScript.onload = resolve;
+        workerScript.onerror = function () { reject(new Error('Could not load pdf.worker.min.js')); };
+        document.body.appendChild(workerScript);
+      };
+      libScript.onerror = function () { reject(new Error('Could not load pdf.min.js')); };
+      document.body.appendChild(libScript);
+    });
+    return pdfJsLoadPromise;
+  }
+
   function importReturnPdf(file) {
     var reader = new FileReader();
     reader.onerror = function () {
       alert('Could not read that file from disk — try again, or a different file.');
     };
     reader.onload = function () {
-      TSIQ.parseReturnPdf(new Uint8Array(reader.result))
+      loadPdfJs()
+        .then(function () { return TSIQ.parseReturnPdf(new Uint8Array(reader.result)); })
         .then(function (result) { renderPdfReview(result, file.name); })
         .catch(function (e) {
           if (e && e.name === 'PasswordException') {
@@ -921,8 +988,12 @@
     var btns = document.querySelectorAll('.tab-btn');
     for (var i = 0; i < btns.length; i++) {
       btns[i].addEventListener('click', function (e) {
-        for (var b = 0; b < btns.length; b++) btns[b].classList.remove('active');
+        for (var b = 0; b < btns.length; b++) {
+          btns[b].classList.remove('active');
+          btns[b].setAttribute('aria-selected', 'false');
+        }
         e.currentTarget.classList.add('active');
+        e.currentTarget.setAttribute('aria-selected', 'true');
         var pages = document.querySelectorAll('.tab-page');
         for (var p = 0; p < pages.length; p++) pages[p].style.display = 'none';
         $(e.currentTarget.getAttribute('data-tab')).style.display = '';
@@ -931,6 +1002,18 @@
     }
     $('lib-count').textContent = '(' + TSIQ.STRATEGIES.length + ')';
   }
+
+  // Number inputs change value on mouse-wheel scroll while focused — a
+  // real hazard on a long form the advisor scrolls with the mouse over
+  // fields. Blur on wheel (delegated so it covers dynamically-built
+  // scenario param inputs too) so scrolling the page never silently
+  // changes a number.
+  document.addEventListener('wheel', function (e) {
+    if (e.target && e.target.matches && e.target.matches('input[type=number]') &&
+        document.activeElement === e.target) {
+      e.target.blur();
+    }
+  }, { passive: true });
 
   document.addEventListener('DOMContentLoaded', function () {
     initBrand();
@@ -967,17 +1050,21 @@
     $('btn-slides').addEventListener('click', function () {
       if (lastRun) TSIQ.render.slideshow(lastRun);
     });
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/vendor/pdf.worker.min.js';
-    }
-    $('btn-import-pdf').addEventListener('click', function () { $('import-pdf-file').click(); });
+    $('btn-import-pdf').addEventListener('click', function () {
+      // Kick off the (cached) load now so it's ready by the time a file is
+      // picked; a failure here surfaces properly via importReturnPdf's own
+      // catch once a file is actually chosen — swallow it here to avoid a
+      // duplicate unhandled-rejection warning for this speculative call.
+      loadPdfJs().catch(function () {});
+      $('import-pdf-file').click();
+    });
     $('import-pdf-file').addEventListener('change', function (e) {
       if (e.target.files && e.target.files[0]) importReturnPdf(e.target.files[0]);
       e.target.value = '';
     });
-    $('pdf-review-close').addEventListener('click', function () { $('pdf-review-modal').classList.remove('open'); });
+    $('pdf-review-close').addEventListener('click', function () { $('pdf-review-modal').close(); });
     $('pdf-review-modal').addEventListener('click', function (e) {
-      if (e.target === $('pdf-review-modal')) $('pdf-review-modal').classList.remove('open');
+      if (e.target === $('pdf-review-modal')) $('pdf-review-modal').close();
     });
     $('btn-suggest').addEventListener('click', function () { runSuggestions(); });
     $('btn-export').addEventListener('click', exportClientFile);
