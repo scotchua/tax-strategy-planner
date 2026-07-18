@@ -198,17 +198,24 @@ unless the note is year-specific.
 | `rentalNet` | Schedule E net; `rentalLossesUsable` gates §469 losses |
 | `reNonPassive` | real-estate professional / materially participates — rental treated as non-passive for NIIT (independent of `rentalLossesUsable`, which is a separate §469 current-usability flag) |
 | `ltcg`, `qualDiv`, `interest`, `otherIncome` | investment/other income |
+| `shortTermGains` | short-term capital gains — ordinary rate, in the NIIT base, netted with `ltcg` before the §1211(b) floor |
+| `ssBenefitsGross` | Social Security benefits (gross, "6a") — the engine computes §86 taxability itself; don't fold this into `otherIncome` |
+| `rothConversionIncome` | ADD Roth conversion amounts here (§408A(d)(3)/§402A(c)(4)) — ordinary income but excluded from the NIIT base (§1411(c)(5)); see roth-conversion.js/in-plan-roth-conversion.js |
 | `propertyTax`, `mortgageInterest`, `charitable`, `otherItemized` | itemized |
 | `age65Count` | count (0-2) of filer/spouse age 65+, drives the senior deduction and additional standard deduction |
 | `adjustments` | ADD above-the-line deductions here (retirement, SE health, HSA) |
 | `qbiReduction` | ADD amounts that also reduce §199A QBI (e.g., SE retirement contributions) |
 | `otherCredits` | ADD nonrefundable federal credits (R&D, WOTC, 45F, §44, 45S) |
 | `corpTaxPaid` | ADD entity-level federal tax (C-corp modeling, 21% via `TSIQ.TABLES_2026.corporateRate`) |
+| `entityStateTax` | ADD entity-level STATE tax (C-corp/S-corp entity-level rate — see c-corp-conversion.js/s-corp-election.js) |
 | `ptetPaid` | entity-level STATE tax (PTET pattern) |
 | `ptetDeducted` | ADD the K-1 income a PTET election reduced federally — added back for the STATE tax base only (see ptet.js) |
+| `stateIncomeAddBack` | ADD income a strategy excludes/reduces FEDERALLY but that a nonconforming STATE still taxes (e.g. QSBS in CA/PA/AL/MS — see qsbs-1202.js); same pattern as `ptetDeducted`, not PTET-specific |
+| `stateOnlyDeduction` | ADD an amount some states let a taxpayer deduct from STATE taxable income with no federal counterpart (e.g. a 529 contribution deduction — see education-529.js); the mirror image of `stateIncomeAddBack` |
 | `kidsCTC`, `otherDeps` | dependents |
 | `stateRate` | flat state rate (decimal) |
 | `priorYearTax`, `priorYearAGI` | prior-year Form 1040 total tax / AGI — §6654 safe-harbor inputs only; not read by `apply()` |
+| `incomeTransitions` | advisor-entered income step-changes (PJ6, "retires in year N") applied by `grownProfile()` itself, AFTER growth — not read by individual strategies' `apply()` |
 
 Multi-year memory: use the shared `state` object (see cost-segregation.js's
 suspended-loss pattern) — namespace your keys (`state.myStrategyThing`).
