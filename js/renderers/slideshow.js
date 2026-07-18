@@ -204,10 +204,17 @@ TSIQ.render = TSIQ.render || {};
     var n = uniqueStrategies.length;
     var movesWord = n + (n === 1 ? ' move' : ' moves');
 
+    // WF1: use the BEST scenario's own (possibly override-merged) profile
+    // for anything scenario-specific — data.profile is the un-overridden
+    // base and would make these figures inconsistent with best.result
+    // whenever a per-scenario fact override (filing status, state rate,
+    // income multiplier) is active.
+    var bestProfile = best.profile || data.profile;
+
     // Incremental first-year savings per strategy (best scenario, in order)
     var stepSavings = {};
-    if (data.profile && best.selections) {
-      TSIQ.incrementalSavings(data.profile, best.selections, data.years, data.growthRate, b0)
+    if (bestProfile && best.selections) {
+      TSIQ.incrementalSavings(bestProfile, best.selections, data.years, data.growthRate, b0)
         .forEach(function (step) { stepSavings[step.strategy.id] = step.incremental; });
     }
 
@@ -216,7 +223,7 @@ TSIQ.render = TSIQ.render || {};
     var gold = (brandColorRaw === TSIQ.DEFAULT_BRAND_COLOR) ? '#C9962A' : brandColorRaw;
     var firmName = data.firmName || brand.name || 'Your Firm';
     var logoImg = safeBrandLogoImg('max-height:56px;max-width:220px');
-    var fsLabel = TSIQ.FILING_STATUS_LABELS[(data.profile && data.profile.filingStatus) || 'mfj'];
+    var fsLabel = TSIQ.FILING_STATUS_LABELS[(bestProfile && bestProfile.filingStatus) || 'mfj'];
 
     /* ------------------------------ 1 · title ----------------------------- */
     var slides = '<section class="slide s-navy active"><div class="slide-pad" style="justify-content:space-between">' +

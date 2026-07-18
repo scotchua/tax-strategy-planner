@@ -116,7 +116,7 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'bunchedContribution', label: 'Bunched DAF contribution (bunch years)', type: 'currency', default: 30000 },
+    { key: 'bunchedContribution', label: 'Bunched DAF contribution (bunch years)', type: 'currency', default: 30000, solveable: true },
     { key: 'bunchEveryNYears', label: 'Bunch every N years', type: 'number', default: 3 }
   ],
 

@@ -100,7 +100,9 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'salary', label: 'Reasonable compensation (W-2 salary)', type: 'currency', default: 80000, grows: true },
+    { key: 'salary', label: 'Reasonable compensation (W-2 salary)', type: 'currency', default: 80000, grows: true,
+      solveable: true, solveFloorKey: 'reasonableCompFloor' },
+    { key: 'reasonableCompFloor', label: 'Reasonable-comp floor (comp study minimum — Watson v. US)', type: 'currency', default: 40000 },
     { key: 'adminCost', label: 'Annual payroll + 1120-S compliance cost', type: 'currency', default: 2500, grows: true },
     { key: 'entityStateTaxPct', label: 'Separate state entity-level tax on S-corp income (%) — 0 for most states; e.g. CA 1.5%', type: 'percent', default: 0 }
   ],
@@ -169,6 +171,11 @@ TSIQ.strategyModules.push({
         notes.push('Salary is under 25% of business profit — a low salary relative to profit ' +
           'is the classic reasonable-compensation exam target (Watson). Support the figure ' +
           'with a comp study before relying on these numbers.');
+      }
+      if (params.reasonableCompFloor > 0 && salary < params.reasonableCompFloor) {
+        notes.push('Warning: salary of ' + TSIQ.fmt.usd(salary) + ' is BELOW the entered reasonable-' +
+          'comp floor of ' + TSIQ.fmt.usd(params.reasonableCompFloor) + ' — raise the salary or the ' +
+          'floor before relying on this figure (Watson v. United States, 668 F.3d 1008).');
       }
       if (entityStateTax > 0) {
         notes.push(TSIQ.fmt.usd(entityStateTax) + ' modeled as a separate state entity-level ' +

@@ -480,6 +480,12 @@ window.TSIQ = window.TSIQ || {};
       personalStateTax: personalStateTax, ptetPaid: p.ptetPaid,
       unusedPtetCredit: unusedPtetCredit,
       excessBusinessLoss: excessBusinessLoss, ssTaxable: ssTaxable,
+      netBusinessResult: netBusinessResult, // WF3: the pre-§461(l) aggregate
+                                             // business result (scheduleCNet +
+                                             // passthroughK1 + rentalAllowed) —
+                                             // exposed so the UI can show
+                                             // proximity to the threshold
+                                             // without recomputing §469 itself.
       totalState: totalState, totalBurden: totalBurden,
       suspendedRentalLossAdded: suspendedAdded,
       suspendedRentalLossUsed: suspendedUsed,

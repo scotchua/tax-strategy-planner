@@ -41,6 +41,7 @@
         <button class="secondary" id="btn-import">Import Client File</button>
         <button class="secondary" id="btn-export">Export Client File</button>
         <button class="secondary" id="btn-suggest">Suggest Strategies</button>
+        <button class="secondary" id="btn-undo" disabled title="Undo the last client-file import, PDF apply, or Copy Scenario 2 &rarr; 3">Undo</button>
         <input id="import-file" type="file" accept=".json,application/json" style="display:none">
         <input id="import-pdf-file" type="file" accept=".pdf,application/pdf" style="display:none">
       </div>
@@ -142,13 +143,23 @@
     </div>
   </section>
 
+  <!-- ================ WF3: threshold-proximity strip ================ -->
+  <section class="panel" id="threshold-panel" style="display:none">
+    <h2 style="margin-bottom:2px">Where This Client Sits</h2>
+    <p class="hint">Signed distance to every modeled cliff, off the numbers in Section 1 above — a positive number is room before the cliff; a negative (highlighted) number means it's already crossed.</p>
+    <div id="threshold-strip" class="threshold-strip"></div>
+  </section>
+
   <!-- ======================= 2. SCENARIOS ======================= -->
   <section class="panel">
     <h2>2 &middot; Build Scenarios</h2>
     <p class="hint">The baseline (no strategies) is always computed. Add strategies to Scenario 2; optionally build a different combination in Scenario 3.</p>
     <div class="scenarios">
       <div class="scenario-box">
-        <input class="label-input" id="sc2-label" type="text" value="Scenario 2">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input class="label-input" id="sc2-label" type="text" value="Scenario 2">
+          <span class="live-total" id="sc2-live-total"></span>
+        </div>
         <details class="scenario-overrides">
           <summary>Fact overrides (optional) — model a what-if for this scenario only</summary>
           <div class="grid">
@@ -168,9 +179,10 @@
         <div id="sc2-strategies"></div>
       </div>
       <div class="scenario-box">
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <input class="label-input" id="sc3-label" type="text" value="Scenario 3 (optional)">
           <button type="button" class="secondary" id="copy-sc2-to-sc3" title="Copy Scenario 2's strategies, parameters, and overrides into Scenario 3">Copy Scenario 2 &rarr;</button>
+          <span class="live-total" id="sc3-live-total"></span>
         </div>
         <details class="scenario-overrides">
           <summary>Fact overrides (optional) — model a what-if for this scenario only</summary>
@@ -191,6 +203,7 @@
         <div id="sc3-strategies"></div>
       </div>
     </div>
+    <div id="scenario-diff" class="scenario-diff" style="display:none"></div>
     <div class="actions" style="margin-top:20px">
       <button class="primary" id="compute">Run Comparison</button>
     </div>

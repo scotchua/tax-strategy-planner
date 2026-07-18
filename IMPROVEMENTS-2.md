@@ -186,7 +186,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
 
 ## WF. Builder workflow
 
-- [ ] **WF1. Live per-strategy incremental savings preview in the picker.** (M/high)
+- [x] **WF1. Live per-strategy incremental savings preview in the picker.** (M/high)
   On checkbox/param change (debounced), run the shared `TSIQ.incrementalSavings` and render a
   signed dollar chip per checked row + a running scenario total in the box header. **Fix
   alongside (real bug found in verification): the pitch deck and slideshow currently call
@@ -194,7 +194,7 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   overrides are active, per-strategy figures are inconsistent with the scenario totals printed
   beside them.** Pass the override-merged profile everywhere.
 
-- [ ] **WF2. Parameter solver: "Optimize this input" grid sweep.** (M/high)
+- [x] **WF2. Parameter solver: "Optimize this input" grid sweep.** (M/high)
   The engine is pure and ~0.04 ms per 10-year scenario — a 60-point sweep + refinement is <10 ms.
   Add `TSIQ.optimizeParam(...)` + a Solve button on params flagged `solveable: true`. For
   s-corp-election salary, require an advisor-entered reasonable-comp floor (cite *David E.
@@ -202,13 +202,13 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   the strategy). Good first targets: s-corp salary, solo-401k/sep-ira contributions,
   daf-bunching `bunchedContribution`. (Not PTET — its rate is state-law-fixed, not plannable.)
 
-- [ ] **WF3. Threshold-proximity strip ("where this client sits").** (M/high)
+- [x] **WF3. Threshold-proximity strip ("where this client sits").** (M/high)
   One `computeYear` on Section 1 change; render signed dollar distances to each modeled cliff —
   QBI threshold/phase-in end (SSTB flagged separately), SALT phase-down start, NIIT MAGI, CTC
   phase-out, additional-Medicare, §461(l), senior-deduction MAGI. All constants already in the
   tables. This is what turns the tool from a calculator into a strategy-finder.
 
-- [ ] **WF4. Marginal + effective rate readout.** (S/high)
+- [x] **WF4. Marginal + effective rate readout.** (S/high)
   Finite differences on the pure engine: Δburden per +$1,000 of ordinary business income, LTCG,
   and above-the-line deduction — captures composite effects no rate table shows (QBI phase-in,
   SALT phase-down band, NIIT, CTC steps). Also add effective-rate and marginal-rate rows per
@@ -216,17 +216,17 @@ Effort: S = small (≤1 hr), M = medium, L = larger. Checkboxes for review.
   **Implementation trap (verified): `computeYear` mutates its `state` argument
   (`state.suspendedRentalLoss`) — every finite-difference call must pass a fresh `{}`.**
 
-- [ ] **WF5. Surface suggest() inside the picker.** (S/medium)
+- [x] **WF5. Surface suggest() inside the picker.** (S/medium)
   Suggestions currently render only in the Section 1 panel. Add "★ Suggested" badges on picker
   rows (reason as visible text), auto-open categories containing suggestions with counts, and a
   per-row "use suggested params" affordance.
 
-- [ ] **WF6. Scenario diff strip.** (S/medium)
+- [x] **WF6. Scenario diff strip.** (S/medium)
   Pure function over `readSelections` + overrides: "Scenario 3 = Scenario 2 + Cost Segregation,
   − PTET; salary $80,000 → $110,000; overrides: MFS." Render above Run Comparison and beside the
   results table.
 
-- [ ] **WF7. Undo stack over serializeState/applyState.** (M/medium)
+- [x] **WF7. Undo stack over serializeState/applyState.** (M/medium)
   The round-trip already exists (autosave/import). Bounded snapshot stack; eager snapshot before
   the three destructive bulk operations (client-file import, PDF Apply, Copy Scenario 2→3);
   restore via the reset-first pattern importClientFile already uses.

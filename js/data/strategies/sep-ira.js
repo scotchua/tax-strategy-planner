@@ -111,7 +111,7 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'contribution', label: 'Owner SEP contribution', type: 'currency', default: 30000 }
+    { key: 'contribution', label: 'Owner SEP contribution', type: 'currency', default: 30000, solveable: true }
   ],
 
   appliesTo: function (profile) {

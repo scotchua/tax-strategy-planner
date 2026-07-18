@@ -112,8 +112,8 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'employeeDeferral', label: 'Employee deferral', type: 'currency', default: 24500 },
-    { key: 'employerContribution', label: 'Employer contribution', type: 'currency', default: 20000 },
+    { key: 'employeeDeferral', label: 'Employee deferral', type: 'currency', default: 24500, solveable: true },
+    { key: 'employerContribution', label: 'Employer contribution', type: 'currency', default: 20000, solveable: true },
     { key: 'ageCatchUpTier', label: 'Owner age (catch-up tier)', type: 'select', default: 'none',
       options: [
         { value: 'none', label: 'Under 50 — no catch-up' },

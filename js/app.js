@@ -21,6 +21,39 @@
   var FORM_DEFAULTS = null;   // captured once at load; used to reset the form on import
   var SESSION_KEY = 'tsiq-session';
 
+  // WF7: bounded undo stack over serializeState()/applyState() — snapshotted
+  // just before each of the three destructive bulk operations (client-file
+  // import, PDF Apply, Copy Scenario 2 -> 3) so a wrong click is recoverable.
+  var UNDO_STACK_LIMIT = 10;
+  var undoStack = [];
+
+  function pushUndoSnapshot() {
+    try {
+      undoStack.push(JSON.stringify(serializeState()));
+      if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
+      updateUndoButton();
+    } catch (e) { /* serialization failure shouldn't block the operation itself */ }
+  }
+  function updateUndoButton() {
+    var btn = $('btn-undo');
+    if (btn) btn.disabled = !undoStack.length;
+  }
+  // Same reset-first pattern importClientFile already uses — a field the
+  // restored snapshot doesn't mention (or never had) can't silently keep
+  // whatever the operation-that's-being-undone left in the form.
+  function undoLast() {
+    if (!undoStack.length) return;
+    var snapshot;
+    try { snapshot = JSON.parse(undoStack.pop()); }
+    catch (e) { updateUndoButton(); return; }
+    resetClientForm();
+    applyState(snapshot);
+    clearLastRunForNewClient();
+    formDirty = true;
+    updateUndoButton();
+    window.scrollTo(0, 0);
+  }
+
   function toFiniteNumber(v) {
     if (typeof v === 'number' && isFinite(v)) return v;
     if (typeof v === 'string' && v.trim() !== '') {
@@ -314,23 +347,33 @@
             (o.value === inp.default ? ' selected' : '') + '>' + esc(o.label) + '</option>';
         }).join('') + '</select></div>';
     }
+    // WF2: a `solveable: true` currency param gets a Solve button that runs
+    // TSIQ.optimizeParam and writes the result back into this field.
+    var solveBtn = inp.solveable
+      ? '<button type="button" class="link wf-solve-btn" data-sckey="' + esc(scKey) +
+        '" data-strategy="' + esc(strategy.id) + '" data-param="' + esc(inp.key) +
+        '" data-floorkey="' + esc(inp.solveFloorKey || '') + '" title="Search for the value that minimizes year-1 tax">Solve</button>'
+      : '';
     return '<div class="param">' + label +
       '<input id="' + esc(id) + '" type="number" value="' + esc(inp.default) + '" min="' +
       esc(inp.min !== undefined ? inp.min : 0) + '"' +
-      (inp.max !== undefined ? ' max="' + esc(inp.max) + '"' : '') + '></div>';
+      (inp.max !== undefined ? ' max="' + esc(inp.max) + '"' : '') + '>' + solveBtn + '</div>';
   }
 
   function buildScenarioPicker(scKey, hostId) {
     $(hostId).innerHTML = categories().map(function (cat) {
       var inCat = TSIQ.STRATEGIES.filter(function (s) { return s.category === cat; });
-      return '<details class="pick-category"><summary>' + esc(cat) +
-        ' <span class="count">(' + inCat.length + ')</span></summary>' +
+      return '<details class="pick-category" data-cat="' + esc(cat) + '"><summary>' + esc(cat) +
+        ' <span class="count">(' + inCat.length + ')</span>' +
+        '<span class="suggest-count" style="display:none"></span></summary>' +
         inCat.map(function (s) {
-          return '<div class="strategy-pick">' +
+          return '<div class="strategy-pick" data-id="' + esc(s.id) + '">' +
             '<label class="pick-label"><input type="checkbox" id="' + esc(scKey + '-' + s.id) + '"> ' +
             esc(s.name) +
             (s.modeled === false ? ' <span class="advisory-badge" title="Included in plan documents; does not change scenario math">Advisory</span>' : '') +
+            ' <span class="wf-savings-chip" id="' + esc(scKey + '-' + s.id + '-chip') + '"></span>' +
             '</label>' +
+            '<div class="suggest-badge" id="' + esc(scKey + '-' + s.id + '-suggest') + '" style="display:none"></div>' +
             '<div class="conflict-warn" id="' + esc(scKey + '-' + s.id + '-warn') + '" style="display:none"></div>' +
             '<div class="params" id="' + esc(scKey + '-' + s.id + '-params') + '" style="display:none">' +
             s.inputs.map(function (inp) { return paramInput(scKey, s, inp); }).join('') +
@@ -341,8 +384,303 @@
       $(scKey + '-' + s.id).addEventListener('change', function (e) {
         $(scKey + '-' + s.id + '-params').style.display = e.target.checked ? 'grid' : 'none';
         updateConflictBadges(scKey);
+        scheduleLivePreview(scKey);
       });
     });
+    $(hostId).addEventListener('click', function (e) {
+      var btn = e.target.closest('.wf-solve-btn');
+      if (btn) { runSolve(btn); return; }
+      var useBtn = e.target.closest('.suggest-use-btn');
+      if (useBtn) { applySuggestedParams(scKey, useBtn.getAttribute('data-id'), useBtn.getAttribute('data-params')); }
+    });
+  }
+
+  /* --------------- WF5: surface suggest() inside the picker -------------- */
+  function applySuggestedParams(scKey, id, paramsJson) {
+    var box = $(scKey + '-' + id);
+    if (!box) return;
+    if (!box.checked) box.click();
+    var params = {};
+    try { params = JSON.parse(paramsJson || '{}'); } catch (e) { /* no params on this suggestion */ }
+    Object.keys(params).forEach(function (k) {
+      var input = $(scKey + '-' + id + '-' + k);
+      if (input) input.value = params[k];
+    });
+    var det = box.closest('details'); if (det) det.open = true;
+    markFormChanged({});
+    scheduleLivePreview(scKey);
+    scrollTo(box.closest('.strategy-pick'));
+  }
+
+  function updatePickerSuggestions(scKey) {
+    var invalid = findInvalidInputs();
+    var suggestions = invalid.length ? [] : TSIQ.suggestStrategies(readProfile());
+    var byId = {};
+    suggestions.forEach(function (s) { if (TSIQ.getStrategy(s.id)) byId[s.id] = s; });
+    var openCats = {};
+    TSIQ.STRATEGIES.forEach(function (s) {
+      var badge = $(scKey + '-' + s.id + '-suggest');
+      if (!badge) return;
+      var sug = byId[s.id];
+      if (!sug) { badge.style.display = 'none'; badge.innerHTML = ''; return; }
+      openCats[s.category] = (openCats[s.category] || 0) + 1;
+      badge.style.display = 'block';
+      badge.innerHTML = '<span class="suggest-star">&#9733; Suggested</span> ' + esc(sug.reason) +
+        (sug.params ? ' <button type="button" class="link suggest-use-btn" data-id="' + esc(s.id) +
+          '" data-params=\'' + esc(JSON.stringify(sug.params)) + '\'>Use suggested params</button>' : '');
+    });
+    document.querySelectorAll('#' + hostIdFor(scKey) + ' .pick-category').forEach(function (det) {
+      var cat = det.getAttribute('data-cat');
+      var countEl = det.querySelector('.suggest-count');
+      if (openCats[cat]) {
+        countEl.style.display = '';
+        countEl.textContent = ' — ' + openCats[cat] + ' suggested';
+        det.open = true;
+      } else if (countEl) {
+        countEl.style.display = 'none';
+        countEl.textContent = '';
+      }
+    });
+  }
+  function hostIdFor(scKey) { return scKey + '-strategies'; }
+
+  var pickerSuggestTimer = null;
+  function schedulePickerSuggestions() {
+    if (pickerSuggestTimer) clearTimeout(pickerSuggestTimer);
+    pickerSuggestTimer = setTimeout(function () {
+      updatePickerSuggestions('sc2'); updatePickerSuggestions('sc3');
+    }, 250);
+  }
+
+  /* -------------------- WF6: scenario diff strip -------------------------- */
+  // Pure over readSelections()/readScenarioOverrides() — "Scenario 3 =
+  // Scenario 2 + Cost Segregation, − PTET; salary $80,000 → $110,000;
+  // overrides: MFS." Returns '' when there's nothing in Scenario 3 to diff.
+  function paramDisplay(inp, v) {
+    if (inp.type === 'currency') return usd(v);
+    if (inp.type === 'select') {
+      var o = (inp.options || []).filter(function (opt) { return opt.value === v; })[0];
+      return o ? o.label : v;
+    }
+    return v;
+  }
+  function scenarioDiffText() {
+    var selA = readSelections('sc2'), selB = readSelections('sc3');
+    if (!selB.length) return '';
+    var byIdA = {}; selA.forEach(function (s) { byIdA[s.strategy.id] = s; });
+    var byIdB = {}; selB.forEach(function (s) { byIdB[s.strategy.id] = s; });
+    var deltaBits = [];
+    selB.forEach(function (s) { if (!byIdA[s.strategy.id]) deltaBits.push('+ ' + s.strategy.name); });
+    selA.forEach(function (s) { if (!byIdB[s.strategy.id]) deltaBits.push('− ' + s.strategy.name); });
+
+    var paramChanges = [];
+    selB.forEach(function (s) {
+      var other = byIdA[s.strategy.id];
+      if (!other) return;
+      (s.strategy.inputs || []).forEach(function (inp) {
+        var vA = other.params[inp.key], vB = s.params[inp.key];
+        if (vA !== vB) {
+          paramChanges.push(s.strategy.name + ' ' + inp.label + ': ' +
+            paramDisplay(inp, vA) + ' → ' + paramDisplay(inp, vB));
+        }
+      });
+    });
+
+    var ovA = readScenarioOverrides('sc2'), ovB = readScenarioOverrides('sc3');
+    var overrideDiffs = [];
+    if ((ovA.filingStatus || '') !== (ovB.filingStatus || '')) {
+      overrideDiffs.push(ovB.filingStatus ? TSIQ.FILING_STATUS_LABELS[ovB.filingStatus] : 'filing status: same as Section 1');
+    }
+    if (ovA.stateRatePct !== ovB.stateRatePct) {
+      overrideDiffs.push('state rate ' + (ovB.stateRatePct !== null ? ovB.stateRatePct + '%' : 'same as Section 1'));
+    }
+    if (ovA.incomeMultiplier !== ovB.incomeMultiplier) {
+      overrideDiffs.push('income ×' + (ovB.incomeMultiplier !== null ? ovB.incomeMultiplier : '1.0'));
+    }
+
+    var label2 = $('sc2-label').value || 'Scenario 2', label3 = $('sc3-label').value || 'Scenario 3';
+    var line = label3 + ' = ' + label2 + (deltaBits.length ? ' ' + deltaBits.join(', ') : ' (same strategies)');
+    var trailer = [];
+    if (paramChanges.length) trailer.push(paramChanges.join('; '));
+    if (overrideDiffs.length) trailer.push('overrides: ' + overrideDiffs.join(', '));
+    return line + (trailer.length ? '; ' + trailer.join('; ') : '');
+  }
+
+  var diffStripTimer = null;
+  function renderScenarioDiff() {
+    var host = $('scenario-diff');
+    var invalid = findInvalidInputs();
+    var text = invalid.length ? '' : scenarioDiffText();
+    if (!text) { host.style.display = 'none'; host.textContent = ''; return; }
+    host.textContent = text;
+    host.style.display = '';
+  }
+  function scheduleScenarioDiff() {
+    if (diffStripTimer) clearTimeout(diffStripTimer);
+    diffStripTimer = setTimeout(renderScenarioDiff, 250);
+  }
+
+  /* ---------------- WF2: parameter solver ("Solve" button) --------------- */
+  function runSolve(btn) {
+    var scKey = btn.getAttribute('data-sckey'), stratId = btn.getAttribute('data-strategy'),
+      paramKey = btn.getAttribute('data-param'), floorKey = btn.getAttribute('data-floorkey');
+    var strategy = TSIQ.getStrategy(stratId);
+    if (!strategy) return;
+    var invalid = findInvalidInputs();
+    if (invalid.length) {
+      alert('Fix the invalid number field(s) before solving:\n\n' + invalid.join('\n'));
+      return;
+    }
+    var box = $(scKey + '-' + stratId);
+    if (!box.checked) box.click(); // solving implies including the strategy
+    var inp = (strategy.inputs || []).filter(function (i) { return i.key === paramKey; })[0];
+    if (!inp) return;
+
+    var profile;
+    try {
+      profile = applyScenarioOverrides(readProfile(), readScenarioOverrides(scKey));
+    } catch (e) { return; }
+
+    var allSelections = readSelections(scKey);
+    var target = allSelections.filter(function (s) { return s.strategy.id === stratId; })[0];
+    var fixed = allSelections.filter(function (s) { return s.strategy.id !== stratId; });
+    if (!target) return;
+
+    var minVal = inp.min !== undefined ? inp.min : 0;
+    if (floorKey) {
+      var floorEl = $(scKey + '-' + stratId + '-' + floorKey);
+      if (floorEl) minVal = Math.max(minVal, parseFloat(floorEl.value) || 0);
+    }
+    var maxVal = inp.max !== undefined ? inp.max : Math.max(inp.default * 5, 300000);
+
+    var origText = btn.textContent;
+    btn.textContent = 'Solving…'; btn.disabled = true;
+    // Synchronous — the engine is pure and a ~80-point sweep is well under
+    // a second even for a multi-strategy scenario; setTimeout(0) just lets
+    // the "Solving…" label paint before the sweep blocks the main thread.
+    setTimeout(function () {
+      var result;
+      try {
+        result = TSIQ.optimizeParam(profile, fixed, target, paramKey, minVal, maxVal, 1, 0);
+      } catch (e) {
+        btn.textContent = origText; btn.disabled = false;
+        alert('Could not solve this parameter: ' + e.message);
+        return;
+      }
+      var field = $(scKey + '-' + stratId + '-' + paramKey);
+      if (field) field.value = Math.round(result.value / 100) * 100;
+      btn.textContent = origText; btn.disabled = false;
+      markFormChanged({});
+      scheduleLivePreview(scKey);
+    }, 0);
+  }
+
+  /* ------------------ WF1: live per-strategy savings preview ------------- */
+  // Debounced so typing in a param field doesn't recompute on every
+  // keystroke — incrementalSavings runs one computeScenario per checked
+  // strategy, cheap individually but not free to run on every input event.
+  var livePreviewTimers = { sc2: null, sc3: null };
+
+  function clearLivePreview(scKey) {
+    TSIQ.STRATEGIES.forEach(function (s) {
+      var chip = $(scKey + '-' + s.id + '-chip');
+      if (chip) { chip.textContent = ''; chip.className = 'wf-savings-chip'; }
+    });
+    var total = $(scKey + '-live-total');
+    if (total) total.textContent = '';
+  }
+
+  function runLivePreview(scKey) {
+    var selections = readSelections(scKey);
+    if (!selections.length) { clearLivePreview(scKey); return; }
+    var invalid = findInvalidInputs();
+    if (invalid.length) return; // don't compute against unparseable inputs mid-edit
+    var baseProfile;
+    try {
+      baseProfile = applyScenarioOverrides(readProfile(), readScenarioOverrides(scKey));
+    } catch (e) { return; }
+    // Year-1 snapshot only (years=1, growthRate=0) — mathematically identical
+    // to year 0 of any longer projection (growth factor is 1^0 either way),
+    // and far cheaper to recompute on every debounced edit.
+    var startingBurden = TSIQ.computeBaseline(baseProfile, 1, 0).years[0].totalBurden;
+    var steps = TSIQ.incrementalSavings(baseProfile, selections, 1, 0, startingBurden);
+    var runningTotal = 0;
+    steps.forEach(function (step) {
+      runningTotal += step.incremental;
+      var chip = $(scKey + '-' + step.strategy.id + '-chip');
+      if (!chip) return;
+      var sign = step.incremental >= 0 ? '−' : '+';
+      chip.textContent = sign + usd(Math.abs(step.incremental));
+      chip.className = 'wf-savings-chip ' + (step.incremental >= 0 ? 'good' : 'bad');
+    });
+    var total = $(scKey + '-live-total');
+    if (total) {
+      total.textContent = (runningTotal >= 0 ? 'Saves ' : 'Costs ') + usd(Math.abs(runningTotal)) + ' (yr 1)';
+      total.className = 'live-total ' + (runningTotal >= 0 ? 'good' : 'bad');
+    }
+  }
+
+  function scheduleLivePreview(scKey) {
+    if (livePreviewTimers[scKey]) clearTimeout(livePreviewTimers[scKey]);
+    livePreviewTimers[scKey] = setTimeout(function () { runLivePreview(scKey); }, 350);
+  }
+
+  /* --------------- WF3: threshold-proximity strip ("where this client
+   * sits") — one computeYear off Section 1's raw entries (no strategies,
+   * no overrides), rendered as signed distances to every modeled cliff. */
+  function thresholdCliffs(profile) {
+    var tb = TSIQ.TABLES_2026, fs = profile.filingStatus;
+    var r = TSIQ.computeYear(profile, {});
+    var medicareBase = (profile.wages || 0) + (profile.ownerWages || 0) +
+      Math.max(0, profile.scheduleCNet || 0) * tb.fica.seNetEarningsFactor;
+    var businessLossMagnitude = Math.max(0, -(r.netBusinessResult));
+
+    var cliffs = [
+      { label: 'QBI phase-in starts (taxable income)', metric: r.taxableIncome, threshold: tb.qbi.threshold[fs] },
+      { label: profile.isSSTB ? 'QBI fully phased out — SSTB (taxable income)' :
+          'QBI wage/UBIA limit fully phased in (taxable income)',
+        metric: r.taxableIncome, threshold: tb.qbi.threshold[fs] + tb.qbi.phaseInRange[fs] },
+      { label: 'SALT cap phase-down starts (AGI)', metric: r.agi, threshold: tb.salt.phaseDownStart[fs] },
+      { label: 'NIIT (3.8%) applies (MAGI)', metric: r.agi, threshold: tb.niit.magiThreshold[fs] },
+      { label: 'Additional Medicare (0.9%) applies (wages + SE)', metric: medicareBase,
+        threshold: tb.fica.additionalMedicareThreshold[fs] },
+      { label: '§461(l) excess business loss limit', metric: businessLossMagnitude,
+        threshold: tb.excessBusinessLoss.threshold[fs] }
+    ];
+    if ((profile.kidsCTC || 0) + (profile.otherDeps || 0) > 0) {
+      cliffs.push({ label: 'CTC phase-out starts (MAGI)', metric: r.agi, threshold: tb.ctc.phaseOutThreshold[fs] });
+    }
+    if ((profile.age65Count || 0) > 0) {
+      cliffs.push({ label: 'Senior deduction phase-out starts (MAGI)', metric: r.agi,
+        threshold: tb.seniorDeduction.magiPhaseOutStart[fs] });
+    }
+    return cliffs.map(function (c) {
+      var distance = c.threshold - c.metric; // + = room before the cliff; − = already crossed
+      return { label: c.label, distance: distance };
+    });
+  }
+
+  var thresholdStripTimer = null;
+  function renderThresholdStrip() {
+    var host = $('threshold-strip'), panel = $('threshold-panel');
+    var invalid = findInvalidInputs();
+    if (invalid.length) return; // leave the last good strip up mid-edit
+    var profile;
+    try { profile = readProfile(); } catch (e) { return; }
+    var cliffs = thresholdCliffs(profile);
+    host.innerHTML = cliffs.map(function (c) {
+      var over = c.distance < 0;
+      var near = !over && c.distance < 15000;
+      var cls = over ? 'over' : (near ? 'near' : 'clear');
+      return '<div class="cliff-chip ' + cls + '"><span class="cliff-label">' + esc(c.label) + '</span>' +
+        '<span class="cliff-value">' + (over ? '−' : '') + usd(Math.abs(c.distance)) +
+        (over ? ' OVER' : ' away') + '</span></div>';
+    }).join('');
+    panel.style.display = '';
+  }
+  function scheduleThresholdStrip() {
+    if (thresholdStripTimer) clearTimeout(thresholdStripTimer);
+    thresholdStripTimer = setTimeout(renderThresholdStrip, 250);
   }
 
   function strategyName(id) {
@@ -461,6 +799,31 @@
   }
 
   /* ------------------------------ results -------------------------------- */
+  // WF4: finite-difference marginal rate on the pure engine. IMPLEMENTATION
+  // TRAP (verified): computeYear MUTATES its `state` argument
+  // (state.suspendedRentalLoss, etc.) — every call here gets its OWN fresh
+  // {} so the "before" computation never leaks into the "after" one.
+  function marginalDelta(profile, field, delta) {
+    var before = TSIQ.computeYear(profile, {}).totalBurden;
+    var bumped = Object.assign({}, profile);
+    bumped[field] = (bumped[field] || 0) + delta;
+    var after = TSIQ.computeYear(bumped, {}).totalBurden;
+    return (after - before) / delta;
+  }
+  // Effective + marginal rate row values for one result column. Marginal
+  // rates are computed off `r.profile` — the POST-strategy profile computeYear
+  // itself returns — so a scenario that (say) converts scheduleCNet into
+  // passthroughK1 via an S-corp election shows the marginal rate on ITS
+  // actual resulting income mix, not the pre-strategy Section 1 entries.
+  function rateReadout(r) {
+    var p = r.profile;
+    var effRate = r.totalIncome > 0 ? r.totalBurden / r.totalIncome : 0;
+    var bizRate = marginalDelta(p, 'scheduleCNet', 1000);
+    var ltcgRate = marginalDelta(p, 'ltcg', 1000);
+    var dedRate = -marginalDelta(p, 'adjustments', 1000); // deduction: negative burden delta -> positive "rate saved"
+    return { effRate: effRate, bizRate: bizRate, ltcgRate: ltcgRate, dedRate: dedRate };
+  }
+
   function detailRows(cols) {
     var lines = [
       ['Adjusted gross income', function (r) { return r.agi; }],
@@ -549,6 +912,15 @@
       ' &middot; ' + run.years + '-year projection &middot; Tax Year ' + TSIQ.TABLES_2026.taxYear +
       '</span></div>';
 
+    // WF6: scenario diff strip, beside the results table too (not just above
+    // Run Comparison) — computed fresh off the CURRENT builder selections,
+    // which is safe here since renderResults always runs immediately after
+    // compute() reads those same selections into `run`.
+    var diffText = run.scenarios.length > 1 ? scenarioDiffText() : '';
+    if (diffText) {
+      html += '<div class="scenario-diff results-diff">' + esc(diffText) + '</div>';
+    }
+
     // KPI cards — savings are the hero (count-up animated after render)
     html += '<div class="kpi-row">' +
       '<div class="kpi bad"><div class="kpi-label">Baseline ' + TSIQ.TABLES_2026.taxYear + ' tax</div>' +
@@ -590,6 +962,14 @@
       '</tr></thead><tbody>' + detailRows(cols) +
       '<tr class="total-row"><td>Total tax burden</td>' + cols.map(function (c) {
         return '<td>' + usd(c.r.totalBurden) + '</td>';
+      }).join('') + '</tr>' +
+      '<tr><td>Effective rate (burden &divide; total income)</td>' + cols.map(function (c) {
+        return '<td>' + TSIQ.fmt.pct(rateReadout(c.r).effRate) + '</td>';
+      }).join('') + '</tr>' +
+      '<tr title="Finite-difference &Delta;burden per +$1,000, off this column\'s own resulting income mix"><td>Marginal rate (next $1,000: biz / LTCG / deduction)</td>' + cols.map(function (c) {
+        var rr = rateReadout(c.r);
+        return '<td style="white-space:nowrap">' + TSIQ.fmt.pct(rr.bizRate) + ' / ' +
+          TSIQ.fmt.pct(rr.ltcgRate) + ' / ' + TSIQ.fmt.pct(rr.dedRate) + '</td>';
       }).join('') + '</tr>' +
       '<tr class="savings-row"><td>Savings vs. baseline</td>' + cols.map(function (c, i) {
         return '<td>' + (i === 0 ? '—' : usd(base.totalBurden - c.r.totalBurden)) + '</td>';
@@ -761,6 +1141,7 @@
         label: $('sc2-label').value || 'Scenario 2',
         selections: selA,
         strategies: selA.map(function (s) { return s.strategy; }),
+        profile: profileA,
         result: TSIQ.computeScenario(profileA, selA, years, growthRate)
       });
     }
@@ -771,6 +1152,7 @@
         label: $('sc3-label').value || 'Scenario 3',
         selections: selB,
         strategies: selB.map(function (s) { return s.strategy; }),
+        profile: profileB,
         result: TSIQ.computeScenario(profileB, selB, years, growthRate)
       });
     }
@@ -972,6 +1354,8 @@
           (data.clientName || 'this file') + '"?')) {
         return;
       }
+      // WF7: snapshot before this destructive bulk operation so it's undoable.
+      pushUndoSnapshot();
       // Reset first so a field this file doesn't mention can't silently
       // inherit whatever the PREVIOUS client left in the form.
       resetClientForm();
@@ -1082,6 +1466,8 @@
     $('pdf-review-body').innerHTML = html;
     $('pdf-review-modal').showModal();
     $('pdfr-apply').addEventListener('click', function () {
+      // WF7: snapshot before this destructive bulk operation so it's undoable.
+      pushUndoSnapshot();
       // Reset every field this importer is responsible for FIRST (except
       // filingStatus, which has no safe "reset" value) — a field this PDF
       // doesn't have (e.g. no Schedule E on this return) must not silently
@@ -1242,6 +1628,31 @@
 
     $('tab-builder').addEventListener('input', markFormChanged);
     $('tab-builder').addEventListener('change', markFormChanged);
+    // WF1: any Section 1 or scenario-builder edit can change the live
+    // per-strategy savings preview — re-run it (debounced) for both boxes.
+    // Param-field edits inside a scenario box only affect that one scenario,
+    // but Section 1 edits affect both, so keep this simple and refresh both.
+    $('tab-builder').addEventListener('input', function () {
+      scheduleLivePreview('sc2'); scheduleLivePreview('sc3');
+    });
+    $('tab-builder').addEventListener('change', function () {
+      scheduleLivePreview('sc2'); scheduleLivePreview('sc3');
+    });
+    // WF3: threshold-proximity strip — refresh on any Section 1 (or
+    // scenario-builder — harmless, just redundant) edit, and render once at
+    // load against whatever Section 1 already has (its own defaults).
+    $('tab-builder').addEventListener('input', scheduleThresholdStrip);
+    $('tab-builder').addEventListener('change', scheduleThresholdStrip);
+    renderThresholdStrip();
+    // WF5: surface suggest() inside the picker itself (badges + auto-open
+    // categories), not just the Section-1-level suggestions panel.
+    $('tab-builder').addEventListener('input', schedulePickerSuggestions);
+    $('tab-builder').addEventListener('change', schedulePickerSuggestions);
+    updatePickerSuggestions('sc2'); updatePickerSuggestions('sc3');
+    // WF6: scenario diff strip — refresh on any builder edit.
+    $('tab-builder').addEventListener('input', scheduleScenarioDiff);
+    $('tab-builder').addEventListener('change', scheduleScenarioDiff);
+    renderScenarioDiff();
     window.addEventListener('beforeunload', function (e) {
       if (formDirty) { e.preventDefault(); e.returnValue = ''; }
     });
@@ -1262,6 +1673,9 @@
 
     $('compute').addEventListener('click', compute);
     $('copy-sc2-to-sc3').addEventListener('click', function () {
+      // WF7: snapshot before this destructive bulk operation (it wipes out
+      // whatever was already in Scenario 3) so it's undoable.
+      pushUndoSnapshot();
       TSIQ.STRATEGIES.forEach(function (s) {
         var box = $('sc3-' + s.id);
         if (box && box.checked) box.click();
@@ -1305,6 +1719,7 @@
       if (e.target === $('pdf-review-modal')) $('pdf-review-modal').close();
     });
     $('btn-suggest').addEventListener('click', function () { runSuggestions(); });
+    $('btn-undo').addEventListener('click', undoLast);
     $('btn-export').addEventListener('click', exportClientFile);
     $('btn-import').addEventListener('click', function () { $('import-file').click(); });
     $('import-file').addEventListener('change', function (e) {

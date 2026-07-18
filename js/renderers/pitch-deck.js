@@ -30,7 +30,12 @@ TSIQ.render = TSIQ.render || {};
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
     // Incremental first-year savings per strategy, added in applyOrder.
-    var steps = TSIQ.incrementalSavings(data.profile, best.selections, data.years, data.growthRate, baseYr1);
+    // WF1: use the BEST scenario's own (possibly override-merged) profile,
+    // not data.profile (the un-overridden base) — when a per-scenario fact
+    // override (filing status, state rate, income multiplier) is active,
+    // recomputing against the wrong profile makes these per-strategy
+    // figures inconsistent with the scenario totals shown beside them.
+    var steps = TSIQ.incrementalSavings(best.profile || data.profile, best.selections, data.years, data.growthRate, baseYr1);
 
     var fees = data.fees || { planning: 0, annual: 0 };
     var totalFees = fees.planning + fees.annual * data.years;

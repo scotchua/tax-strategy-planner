@@ -199,4 +199,41 @@ window.TSIQ = window.TSIQ || {};
     });
     return steps;
   };
+
+  /**
+   * WF2: grid-search solver for a single strategy's `solveable: true`
+   * currency param — finds the value in [minVal, maxVal] that minimizes
+   * year-1 totalBurden, holding every OTHER selection (and every OTHER
+   * param on the target strategy itself) fixed at its current value.
+   * Two passes (coarse grid, then a fine grid over the coarse winner's
+   * neighborhood) rather than a unimodal-assuming method (ternary search) —
+   * bracket cliffs and QBI phase-ins can create local wiggles a strictly
+   * unimodal search could jump past.
+   * target: { strategy, params } — params is a snapshot; paramKey is swept.
+   * fixedSelections: every OTHER checked selection in the same scenario.
+   */
+  TSIQ.optimizeParam = function (baseProfile, fixedSelections, target, paramKey, minVal, maxVal, years, growthRate) {
+    function burdenAt(v) {
+      var params = Object.assign({}, target.params);
+      params[paramKey] = v;
+      var sel = fixedSelections.concat([{ strategy: target.strategy, params: params }]);
+      return TSIQ.computeScenario(baseProfile, sel, years, growthRate).years[0].totalBurden;
+    }
+    var lo = Math.min(minVal, maxVal), hi = Math.max(minVal, maxVal);
+    if (!(hi > lo)) return { value: lo, totalBurden: burdenAt(lo) };
+    var GRID = 40;
+    function sweep(a, b) {
+      var bestV = a, bestB = burdenAt(a);
+      for (var i = 1; i <= GRID; i++) {
+        var v = a + (b - a) * (i / GRID);
+        var burden = burdenAt(v);
+        if (burden < bestB) { bestB = burden; bestV = v; }
+      }
+      return { value: bestV, totalBurden: bestB };
+    }
+    var coarse = sweep(lo, hi);
+    var step = (hi - lo) / GRID;
+    var fine = sweep(Math.max(lo, coarse.value - step), Math.min(hi, coarse.value + step));
+    return fine.totalBurden <= coarse.totalBurden ? fine : coarse;
+  };
 })();
