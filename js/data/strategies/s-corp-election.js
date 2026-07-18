@@ -100,8 +100,8 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'salary', label: 'Reasonable compensation (W-2 salary)', type: 'currency', default: 80000 },
-    { key: 'adminCost', label: 'Annual payroll + 1120-S compliance cost', type: 'currency', default: 2500 }
+    { key: 'salary', label: 'Reasonable compensation (W-2 salary)', type: 'currency', default: 80000, grows: true },
+    { key: 'adminCost', label: 'Annual payroll + 1120-S compliance cost', type: 'currency', default: 2500, grows: true }
   ],
 
   suggest: function (p) {

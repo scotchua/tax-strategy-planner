@@ -129,12 +129,20 @@ TSIQ.STRATEGIES.forEach(function (s) {
   if (s.appliesTo !== undefined && typeof s.appliesTo !== 'function') {
     errs.push('appliesTo must be a function');
   }
+  ['conflictsWith', 'requiresOneOf'].forEach(function (k) {
+    if (s[k] !== undefined && (!Array.isArray(s[k]) || !s[k].every(function (id) { return typeof id === 'string'; }))) {
+      errs.push(k + ' must be an array of strategy id strings');
+    }
+  });
   (s.inputs || []).forEach(function (inp, i) {
     var loc = 'inputs[' + i + ']';
     if (!inp.key) errs.push(loc + ' missing key');
     if (!inp.label) errs.push(loc + ' missing label');
     if (!inp.type) errs.push(loc + ' missing type');
     if (inp.default === undefined) errs.push(loc + ' missing default');
+    if (inp.grows !== undefined && inp.type !== 'currency') {
+      errs.push(loc + ' grows only makes sense on type=currency (a nominal dollar amount that should scale with income over the projection)');
+    }
     if (inp.type === 'select') {
       if (!Array.isArray(inp.options) || !inp.options.length) {
         errs.push(loc + ' type=select requires a non-empty options array');
@@ -204,6 +212,25 @@ TSIQ.STRATEGIES.forEach(function (s) {
   }
 
   if (errs.length) failures.push(s.id + ': ' + errs.join('; '));
+});
+
+// Cross-strategy reference check (needs every id known first, so it runs as
+// its own pass after the main loop above). conflictsWith must be symmetric —
+// a real conflict is bidirectional by definition, so a one-sided entry is a
+// bug (a missed reciprocal add), not a legitimate asymmetric relationship.
+TSIQ.STRATEGIES.forEach(function (s) {
+  (s.conflictsWith || []).forEach(function (id) {
+    if (!seenIds[id]) failures.push(s.id + ': conflictsWith references unknown strategy id "' + id + '"');
+    else {
+      var other = TSIQ.STRATEGIES.filter(function (x) { return x.id === id; })[0];
+      if (other && (other.conflictsWith || []).indexOf(s.id) === -1) {
+        failures.push(s.id + ': conflictsWith "' + id + '" is not reciprocated on "' + id + '"');
+      }
+    }
+  });
+  (s.requiresOneOf || []).forEach(function (id) {
+    if (!seenIds[id]) failures.push(s.id + ': requiresOneOf references unknown strategy id "' + id + '"');
+  });
 });
 
 console.log('Strategies loaded: ' + TSIQ.STRATEGIES.length);

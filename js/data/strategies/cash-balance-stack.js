@@ -12,6 +12,9 @@ TSIQ.strategyModules.push({
   applyOrder: 64,
   modeled: true,
 
+  // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
+  conflictsWith: ['simple-ira'],
+
   advisor: {
     summary:
       'The maximum-deduction retirement architecture for a high-income owner: ' +

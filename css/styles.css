@@ -144,6 +144,12 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
   display: inline-block; background: #eef2f7; color: #51677f; font-size: 10px; font-weight: 750;
   text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 9px; border-radius: 20px; margin-left: 6px;
 }
+/* Non-blocking conflict/prerequisite hint next to a checked strategy — see
+   conflictsWith/requiresOneOf metadata + updateConflictBadges() in app.js. */
+.conflict-warn {
+  font-size: 12px; color: #8a5a00; background: #fdf3dd; border: 1px solid #f0dca6;
+  border-radius: 6px; padding: 4px 9px; margin: 4px 0 0 27px;
+}
 .card-actions { display: flex; gap: 18px; align-items: baseline; margin-top: 12px; }
 .strategy-card .link {
   font-size: 13px; color: var(--accent-text); font-weight: 650; background: none; border: none;
@@ -161,6 +167,14 @@ section.panel > .hint { color: var(--muted); font-size: 13.5px; margin-bottom: 2
   width: 100%; font-size: 16px; font-weight: 650; border: none; border-bottom: 2px solid var(--accent);
   padding: 4px 2px 6px; margin-bottom: 14px; background: transparent; font-family: inherit;
 }
+.scenario-overrides {
+  border: 1px dashed var(--line); border-radius: 8px; padding: 2px 12px; margin-bottom: 14px; background: var(--bg);
+}
+.scenario-overrides summary {
+  cursor: pointer; padding: 8px 0; font-size: 12px; font-weight: 650; color: var(--muted);
+}
+.scenario-overrides summary:hover { color: var(--accent-text); }
+.scenario-overrides .grid { padding-bottom: 12px; }
 .pick-category { border-top: 1px solid var(--line-soft); padding: 2px 0; }
 .pick-category summary {
   cursor: pointer; padding: 10px 0; text-transform: uppercase; letter-spacing: 0.8px;
@@ -224,6 +238,13 @@ button.secondary:hover { border-color: var(--accent); color: var(--accent-text);
   color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
   border-radius: var(--radius); padding: 10px 16px; margin-bottom: 14px;
   font-size: 13.5px; font-weight: 650;
+}
+/* Persistent: this build's tax tables have fallen behind the calendar year
+   (see checkLawStaleness() in app.js) — distinct from .stale-banner above,
+   which is about the FORM having changed since the last Compute. */
+.staleness-banner {
+  background: var(--red); color: #fff; text-align: center;
+  padding: 10px 16px; font-size: 13.5px; font-weight: 650;
 }
 #results-section.stale #results { opacity: 0.5; filter: grayscale(0.4); pointer-events: none; }
 .kpi .kpi-chip {

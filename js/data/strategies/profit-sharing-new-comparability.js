@@ -12,6 +12,9 @@ TSIQ.strategyModules.push({
   applyOrder: 67,
   modeled: true,
 
+  // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
+  conflictsWith: ['simple-ira'],
+
   advisor: {
     summary:
       'A cross-tested profit sharing design under Reg. §1.401(a)(4)-8: instead ' +

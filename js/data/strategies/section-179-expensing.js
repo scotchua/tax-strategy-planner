@@ -161,6 +161,10 @@ TSIQ.strategyModules.push({
       }
       var sl = allowed / recovery;
       p[route] = p[route] - (allowed - sl);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§1250
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (allowed - sl);
       state.sec179Route = route;
       state.sec179Allowed = allowed;
       notes.push('Year 1: ' + TSIQ.fmt.usd(allowed) + ' expensed under §179, modeled ' +

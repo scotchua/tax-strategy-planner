@@ -12,6 +12,9 @@ TSIQ.strategyModules.push({
   applyOrder: 64,
   modeled: true,
 
+  // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
+  conflictsWith: ['simple-ira'],
+
   advisor: {
     summary:
       'A qualified plan that promises a future benefit — up to a $290,000 annual ' +

@@ -9,6 +9,8 @@
 </head>
 <body>
 
+<div id="law-staleness-banner" class="staleness-banner" style="display:none" role="alert"></div>
+
 <header>
   <img id="brand-logo" alt="Firm logo">
   <div class="header-text">
@@ -84,6 +86,7 @@
         <div class="field"><label for="scheduleCNet">Schedule C net profit</label><input id="scheduleCNet" type="number" value="0"></div>
         <div class="field"><label for="passthroughK1">K-1 ordinary income (existing S-corp/pship)</label><input id="passthroughK1" type="number" value="0"></div>
         <div class="field"><label for="entityW2Wages">W-2 wages paid by entity (for &sect;199A)</label><input id="entityW2Wages" type="number" value="0"></div>
+        <div class="field"><label for="ownerWages">Client&rsquo;s own W-2 wages from that entity</label><input id="ownerWages" type="number" value="0"></div>
         <div class="field"><label for="rentalNet">Rental net income / (loss)</label><input id="rentalNet" type="number" value="0"></div>
         <div class="field"><label for="ltcg">Long-term capital gains</label><input id="ltcg" type="number" value="0"></div>
         <div class="field"><label for="qualDiv">Qualified dividends</label><input id="qualDiv" type="number" value="0"></div>
@@ -118,6 +121,14 @@
     </div>
 
     <div class="form-group">
+      <h3 class="group-title">Prior Year (for §6654 Safe Harbor)</h3>
+      <div class="grid">
+        <div class="field"><label for="priorYearTax">Prior-year total tax (Form 1040, line 24)</label><input id="priorYearTax" type="number" value="0"></div>
+        <div class="field"><label for="priorYearAGI">Prior-year AGI</label><input id="priorYearAGI" type="number" value="0"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
       <h3 class="group-title">Projection Assumptions</h3>
       <div class="grid">
         <div class="field"><label for="stateRatePct">State effective rate (%)</label><input id="stateRatePct" type="number" value="5" step="0.1"></div>
@@ -134,10 +145,45 @@
     <div class="scenarios">
       <div class="scenario-box">
         <input class="label-input" id="sc2-label" type="text" value="Scenario 2">
+        <details class="scenario-overrides">
+          <summary>Fact overrides (optional) — model a what-if for this scenario only</summary>
+          <div class="grid">
+            <div class="field"><label for="sc2-ov-filingStatus">Filing status</label>
+              <select id="sc2-ov-filingStatus">
+                <option value="">&mdash; same as Section 1 &mdash;</option>
+                <option value="mfj">Married Filing Jointly</option>
+                <option value="single">Single</option>
+                <option value="hoh">Head of Household</option>
+                <option value="mfs">Married Filing Separately</option>
+              </select>
+            </div>
+            <div class="field"><label for="sc2-ov-stateRatePct">State effective rate (%)</label><input id="sc2-ov-stateRatePct" type="number" step="0.1" placeholder="same"></div>
+            <div class="field"><label for="sc2-ov-incomeMultiplier">Income multiplier (&times;)</label><input id="sc2-ov-incomeMultiplier" type="number" step="0.05" placeholder="1.0"></div>
+          </div>
+        </details>
         <div id="sc2-strategies"></div>
       </div>
       <div class="scenario-box">
-        <input class="label-input" id="sc3-label" type="text" value="Scenario 3 (optional)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <input class="label-input" id="sc3-label" type="text" value="Scenario 3 (optional)">
+          <button type="button" class="secondary" id="copy-sc2-to-sc3" title="Copy Scenario 2's strategies, parameters, and overrides into Scenario 3">Copy Scenario 2 &rarr;</button>
+        </div>
+        <details class="scenario-overrides">
+          <summary>Fact overrides (optional) — model a what-if for this scenario only</summary>
+          <div class="grid">
+            <div class="field"><label for="sc3-ov-filingStatus">Filing status</label>
+              <select id="sc3-ov-filingStatus">
+                <option value="">&mdash; same as Section 1 &mdash;</option>
+                <option value="mfj">Married Filing Jointly</option>
+                <option value="single">Single</option>
+                <option value="hoh">Head of Household</option>
+                <option value="mfs">Married Filing Separately</option>
+              </select>
+            </div>
+            <div class="field"><label for="sc3-ov-stateRatePct">State effective rate (%)</label><input id="sc3-ov-stateRatePct" type="number" step="0.1" placeholder="same"></div>
+            <div class="field"><label for="sc3-ov-incomeMultiplier">Income multiplier (&times;)</label><input id="sc3-ov-incomeMultiplier" type="number" step="0.05" placeholder="1.0"></div>
+          </div>
+        </details>
         <div id="sc3-strategies"></div>
       </div>
     </div>

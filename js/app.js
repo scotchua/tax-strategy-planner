@@ -103,6 +103,9 @@
         var box = $(scKey + '-' + s.id);
         if (box && box.checked) box.click();
       });
+      if ($(scKey + '-ov-filingStatus')) $(scKey + '-ov-filingStatus').value = '';
+      if ($(scKey + '-ov-stateRatePct')) $(scKey + '-ov-stateRatePct').value = '';
+      if ($(scKey + '-ov-incomeMultiplier')) $(scKey + '-ov-incomeMultiplier').value = '';
     });
   }
 
@@ -328,6 +331,7 @@
             esc(s.name) +
             (s.modeled === false ? ' <span class="advisory-badge" title="Included in plan documents; does not change scenario math">Advisory</span>' : '') +
             '</label>' +
+            '<div class="conflict-warn" id="' + esc(scKey + '-' + s.id + '-warn') + '" style="display:none"></div>' +
             '<div class="params" id="' + esc(scKey + '-' + s.id + '-params') + '" style="display:none">' +
             s.inputs.map(function (inp) { return paramInput(scKey, s, inp); }).join('') +
             '</div></div>';
@@ -336,7 +340,41 @@
     TSIQ.STRATEGIES.forEach(function (s) {
       $(scKey + '-' + s.id).addEventListener('change', function (e) {
         $(scKey + '-' + s.id + '-params').style.display = e.target.checked ? 'grid' : 'none';
+        updateConflictBadges(scKey);
       });
+    });
+  }
+
+  function strategyName(id) {
+    var s = TSIQ.STRATEGIES.filter(function (x) { return x.id === id; })[0];
+    return s ? s.name : id;
+  }
+
+  // Non-blocking hints from declarative conflictsWith/requiresOneOf metadata
+  // (see e.g. simple-ira.js, ptet.js) — surfaced at selection time instead of
+  // buried in a post-run note, but never blocks Compute.
+  function updateConflictBadges(scKey) {
+    var checkedIds = TSIQ.STRATEGIES.filter(function (s) {
+      return $(scKey + '-' + s.id).checked;
+    }).map(function (s) { return s.id; });
+    TSIQ.STRATEGIES.forEach(function (s) {
+      var badge = $(scKey + '-' + s.id + '-warn');
+      if (!$(scKey + '-' + s.id).checked) { badge.style.display = 'none'; return; }
+      var msgs = [];
+      (s.conflictsWith || []).forEach(function (id) {
+        if (checkedIds.indexOf(id) !== -1) msgs.push('Conflicts with ' + strategyName(id) + '.');
+      });
+      if (s.requiresOneOf && s.requiresOneOf.length &&
+          !s.requiresOneOf.some(function (id) { return checkedIds.indexOf(id) !== -1; })) {
+        msgs.push('Usually paired with ' + s.requiresOneOf.map(strategyName).join(' or ') +
+          ' (skip this if the client already has that income/entity in place).');
+      }
+      if (msgs.length) {
+        badge.textContent = '⚠ ' + msgs.join(' ');
+        badge.style.display = 'block';
+      } else {
+        badge.style.display = 'none';
+      }
     });
   }
 
@@ -360,6 +398,38 @@
     return out;
   }
 
+  // Fact overrides let a single scenario model a what-if (different filing
+  // status, state, or income level) WITHOUT touching Section 1 or the
+  // baseline — the other scenario and the baseline keep the client's actual
+  // facts. Blank/empty fields mean "inherit from Section 1".
+  var INCOME_OVERRIDE_FIELDS = ['wages', 'scheduleCNet', 'passthroughK1', 'rentalNet',
+    'ltcg', 'qualDiv', 'interest', 'otherIncome'];
+
+  function readScenarioOverrides(scKey) {
+    var fsEl = $(scKey + '-ov-filingStatus'), rateEl = $(scKey + '-ov-stateRatePct'),
+      multEl = $(scKey + '-ov-incomeMultiplier');
+    return {
+      filingStatus: (fsEl && fsEl.value) || null,
+      stateRatePct: (rateEl && rateEl.value !== '') ? parseFloat(rateEl.value) : null,
+      incomeMultiplier: (multEl && multEl.value !== '') ? parseFloat(multEl.value) : null
+    };
+  }
+
+  function applyScenarioOverrides(baseProfile, overrides) {
+    if (!overrides.filingStatus && overrides.stateRatePct === null && overrides.incomeMultiplier === null) {
+      return baseProfile;
+    }
+    var p = Object.assign({}, baseProfile);
+    if (overrides.filingStatus) p.filingStatus = overrides.filingStatus;
+    if (overrides.stateRatePct !== null && isFinite(overrides.stateRatePct)) {
+      p.stateRate = overrides.stateRatePct / 100;
+    }
+    if (overrides.incomeMultiplier !== null && isFinite(overrides.incomeMultiplier)) {
+      INCOME_OVERRIDE_FIELDS.forEach(function (k) { p[k] = p[k] * overrides.incomeMultiplier; });
+    }
+    return p;
+  }
+
   /* ----------------------------- profile IO ------------------------------ */
   function num(id) { return parseFloat($(id).value) || 0; }
 
@@ -370,6 +440,7 @@
       scheduleCNet: num('scheduleCNet'),
       passthroughK1: num('passthroughK1'),
       entityW2Wages: num('entityW2Wages'),
+      ownerWages: num('ownerWages'),
       isSSTB: $('isSSTB').checked,
       rentalNet: num('rentalNet'),
       rentalLossesUsable: $('rentalLossesUsable').checked,
@@ -382,6 +453,7 @@
       age65Count: num('age65Count'),
       fedWithholding: num('fedWithholding'), fedEstimates: num('fedEstimates'),
       stateWithholding: num('stateWithholding'), stateEstimates: num('stateEstimates'),
+      priorYearTax: num('priorYearTax'), priorYearAGI: num('priorYearAGI'),
       stateRate: num('stateRatePct') / 100
     };
   }
@@ -413,6 +485,44 @@
       }).join('') + '</tr>';
     });
     return html;
+  }
+
+  // §6654 individual estimated-tax safe harbor: the required annual payment
+  // is the SMALLER of 90% of the current year's tax or 100% (110% if prior-
+  // year AGI exceeded the high-income threshold) of the prior year's tax —
+  // whichever the client can actually use (prior-year figures are optional).
+  // Entity-level tax (corpTaxPaid) is excluded — it isn't the individual's
+  // liability under §6654.
+  var ES_DUE_DATES = [
+    { label: 'Apr 15', month: 3, day: 15, yearOffset: 0 },
+    { label: 'Jun 15', month: 5, day: 15, yearOffset: 0 },
+    { label: 'Sep 15', month: 8, day: 15, yearOffset: 0 },
+    { label: 'Jan 15', month: 0, day: 15, yearOffset: 1 }
+  ];
+  function remainingEsDueDates(taxYear) {
+    var today = new Date();
+    return ES_DUE_DATES.filter(function (q) {
+      return new Date(taxYear + q.yearOffset, q.month, q.day) >= today;
+    });
+  }
+  function computeSafeHarbor(profile, yr1) {
+    var currentYearFedTax = Math.max(0, yr1.totalFederal - (yr1.corpTaxPaid || 0));
+    var priorYearTax = profile.priorYearTax || 0;
+    var highIncomeThreshold = (profile.filingStatus === 'mfs') ? 75000 : 150000;
+    var priorYearFactor = (profile.priorYearAGI || 0) > highIncomeThreshold ? 1.10 : 1.00;
+    var ninetyCurrent = 0.90 * currentYearFedTax;
+    var priorYearSafeHarbor = priorYearTax > 0 ? priorYearFactor * priorYearTax : Infinity;
+    var required = Math.max(0, Math.min(ninetyCurrent, priorYearSafeHarbor));
+    var method = (priorYearSafeHarbor <= ninetyCurrent)
+      ? (priorYearFactor === 1.10 ? '110% of prior-year tax' : '100% of prior-year tax')
+      : '90% of current-year tax';
+    var alreadyPaid = (profile.fedWithholding || 0) + (profile.fedEstimates || 0);
+    var remaining = Math.max(0, required - alreadyPaid);
+    var dueDates = remainingEsDueDates(TSIQ.TABLES_2026.taxYear);
+    return {
+      required: required, method: method, alreadyPaid: alreadyPaid, remaining: remaining,
+      dueDates: dueDates, perInstallment: dueDates.length ? remaining / dueDates.length : 0
+    };
   }
 
   function renderResults(run) {
@@ -489,6 +599,33 @@
         return '<td>' + usd(c.r.totalBalanceDue) + '</td>';
       }).join('') + '</tr></tbody></table></div>';
 
+    // §6654 safe-harbor quarterly estimates — one column per scenario, same
+    // "Baseline / Scenario N" layout as the comparison table above.
+    var esDueDates = remainingEsDueDates(TSIQ.TABLES_2026.taxYear);
+    html += '<h3>Federal Quarterly Estimates (§6654 Safe Harbor)</h3>' +
+      '<div class="table-scroll"><table class="results-table"><thead><tr><th></th>' +
+      cols.map(function (c) { return '<th>' + esc(c.label) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      [
+        ['Required annual payment', function (sh) { return usd(sh.required); }],
+        ['Safe-harbor method used', function (sh) { return sh.method; }],
+        ['Less: withholding + estimates paid', function (sh) { return usd(-sh.alreadyPaid); }],
+        ['Remaining to pay via estimates', function (sh) { return usd(sh.remaining); }],
+        [esDueDates.length
+          ? 'Per remaining installment (&times;' + esDueDates.length + ': ' +
+            esDueDates.map(function (q) { return q.label; }).join(', ') + ')'
+          : 'Per remaining installment (no installments left this tax year)',
+          function (sh) { return usd(sh.perInstallment); }]
+      ].map(function (line) {
+        return '<tr><td>' + line[0] + '</td>' + cols.map(function (c) {
+          return '<td>' + line[1](computeSafeHarbor(run.profile, c.r)) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="hint" style="color:var(--muted);font-size:13px;margin:-8px 0 20px">' +
+      'Federal only (IRC §6654); ignores any withholding/estimates already reflected above as ' +
+      'paid mid-quarter. Enter prior-year total tax and AGI above to unlock the 100%/110% test — ' +
+      'without it, only the 90%-of-current-year test applies.</p>';
+
     // multi-year projection
     html += '<h3>' + run.years + '-Year Projection (' + (run.growthRate * 100).toFixed(1) +
       '% annual income growth)</h3>' +
@@ -526,12 +663,17 @@
       html += '<h3>Planning Notes</h3><ul class="notes">' +
         allNotes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
     }
-    html += '<p class="fine-print">2026 federal figures per Rev. Proc. 2025-32 as amended by OBBBA. ' +
+    html += '<p class="fine-print">' + (isLawStale() ? '<strong>This tool models ' +
+      TSIQ.TABLES_2026.taxYear + ' tax law, which is no longer the current tax year — every ' +
+      'figure below needs new tables before it can be relied on.</strong> ' : '') +
+      '2026 federal figures per Rev. Proc. 2025-32 as amended by OBBBA. ' +
       'Projection years apply 2026 law AND 2026 dollar thresholds/brackets to every year shown ' +
       '(not inflation-indexed) — later-year figures are illustrative, not indexed projections. ' +
       'State tax modeled at a flat effective rate. Rental income does not enter the §199A QBI ' +
-      'calculation. AMT, depreciation recapture on sale, and §461(l) excess business loss are not ' +
-      'modeled — see the README Scope Notes.</p>';
+      'calculation. AMT and depreciation recapture on sale are not modeled — see the README Scope ' +
+      'Notes. §461(l) excess business loss is not modeled either, but is flagged above (Planning ' +
+      'Notes) with the dollar amount whenever a scenario\'s aggregate business loss actually ' +
+      'crosses the threshold.</p>';
 
     $('results').innerHTML = html;
     $('output-actions').style.display = 'flex';
@@ -606,20 +748,22 @@
     var scenarios = [];
     var selA = readSelections('sc2');
     if (selA.length) {
+      var profileA = applyScenarioOverrides(profile, readScenarioOverrides('sc2'));
       scenarios.push({
         label: $('sc2-label').value || 'Scenario 2',
         selections: selA,
         strategies: selA.map(function (s) { return s.strategy; }),
-        result: TSIQ.computeScenario(profile, selA, years, growthRate)
+        result: TSIQ.computeScenario(profileA, selA, years, growthRate)
       });
     }
     var selB = readSelections('sc3');
     if (selB.length) {
+      var profileB = applyScenarioOverrides(profile, readScenarioOverrides('sc3'));
       scenarios.push({
         label: $('sc3-label').value || 'Scenario 3',
         selections: selB,
         strategies: selB.map(function (s) { return s.strategy; }),
-        result: TSIQ.computeScenario(profile, selB, years, growthRate)
+        result: TSIQ.computeScenario(profileB, selB, years, growthRate)
       });
     }
     if (!scenarios.length) {
@@ -646,10 +790,11 @@
   // used as the autosave/restore payload (SESSION_KEY) — same serialize/
   // apply pair, so the two stay consistent.
   var PROFILE_FIELD_IDS = ['filingStatus', 'wages', 'scheduleCNet', 'passthroughK1',
-    'entityW2Wages', 'rentalNet', 'ltcg', 'qualDiv', 'interest', 'otherIncome',
+    'entityW2Wages', 'ownerWages', 'rentalNet', 'ltcg', 'qualDiv', 'interest', 'otherIncome',
     'propertyTax', 'mortgageInterest', 'charitable', 'otherItemized',
     'kidsCTC', 'otherDeps', 'age65Count', 'fedWithholding', 'fedEstimates',
-    'stateWithholding', 'stateEstimates', 'stateRatePct', 'years', 'growthPct'];
+    'stateWithholding', 'stateEstimates', 'priorYearTax', 'priorYearAGI',
+    'stateRatePct', 'years', 'growthPct'];
   var PROFILE_CHECKBOX_IDS = ['isSSTB', 'rentalLossesUsable', 'reNonPassive'];
   var VALID_FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];
 
@@ -668,6 +813,7 @@
       return {
         key: scKey,
         label: $(scKey + '-label') ? $(scKey + '-label').value : '',
+        overrides: readScenarioOverrides(scKey),
         strategies: readSelections(scKey).map(function (sel) {
           return { id: sel.strategy.id, params: sel.params };
         })
@@ -707,6 +853,18 @@
     (data.scenarios || []).forEach(function (sc) {
       if (!sc || !sc.key) return;
       if ($(sc.key + '-label') && sc.label) $(sc.key + '-label').value = sc.label;
+      var ov = sc.overrides;
+      if (ov) {
+        if ($(sc.key + '-ov-filingStatus') && ov.filingStatus) {
+          $(sc.key + '-ov-filingStatus').value = ov.filingStatus;
+        }
+        if ($(sc.key + '-ov-stateRatePct') && ov.stateRatePct !== null && ov.stateRatePct !== undefined) {
+          $(sc.key + '-ov-stateRatePct').value = ov.stateRatePct;
+        }
+        if ($(sc.key + '-ov-incomeMultiplier') && ov.incomeMultiplier !== null && ov.incomeMultiplier !== undefined) {
+          $(sc.key + '-ov-incomeMultiplier').value = ov.incomeMultiplier;
+        }
+      }
       (sc.strategies || []).forEach(function (s) {
         var box = $(sc.key + '-' + s.id);
         if (!box) { skipped.push(sc.key + ':' + s.id); return; }
@@ -918,6 +1076,12 @@
         var target = $(k);
         if (target) target.value = el.value;
       });
+      // This imported return IS the prior year's filed return — its own
+      // reported total tax / AGI (already used above for the tie-out) are
+      // exactly the §6654 safe-harbor inputs, so carry them over too.
+      var ref = result.reference;
+      if (ref.totalTax !== null && ref.totalTax !== undefined) $('priorYearTax').value = Math.round(ref.totalTax);
+      if (ref.agi !== null && ref.agi !== undefined) $('priorYearAGI').value = Math.round(ref.agi);
       $('pdf-review-modal').close();
       clearLastRunForNewClient();
       formDirty = true;
@@ -1016,6 +1180,23 @@
     }
   }
 
+  // If the calendar year has moved past the tax year these tables model,
+  // every figure this app produces is silently wrong (2026 law/brackets
+  // applied to what should be a 2027+ return). isLawStale() is exported so
+  // renderers can append the same warning to their own disclaimers.
+  function isLawStale() {
+    return new Date().getFullYear() > TSIQ.TABLES_2026.taxYear;
+  }
+  TSIQ.isLawStale = isLawStale;
+  function checkLawStaleness() {
+    if (!isLawStale()) return;
+    var banner = $('law-staleness-banner');
+    banner.textContent = 'This tool models ' + TSIQ.TABLES_2026.taxYear + ' tax law. It is now ' +
+      new Date().getFullYear() + ' — confirm js/data/tax-tables-2026.js has been updated for the ' +
+      'current tax year before relying on any figure below.';
+    banner.style.display = 'block';
+  }
+
   // Number inputs change value on mouse-wheel scroll while focused — a
   // real hazard on a long form the advisor scrolls with the mouse over
   // fields. Blur on wheel (delegated so it covers dynamically-built
@@ -1031,6 +1212,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     initBrand();
     checkStrategySnapshotDrift();
+    checkLawStaleness();
     initTabs();
     buildLibrary();
     buildScenarioPicker('sc2', 'sc2-strategies');
@@ -1058,6 +1240,27 @@
     } catch (e) { /* corrupt draft — leave the form as-is */ }
 
     $('compute').addEventListener('click', compute);
+    $('copy-sc2-to-sc3').addEventListener('click', function () {
+      TSIQ.STRATEGIES.forEach(function (s) {
+        var box = $('sc3-' + s.id);
+        if (box && box.checked) box.click();
+      });
+      readSelections('sc2').forEach(function (sel) {
+        var box = $('sc3-' + sel.strategy.id);
+        if (!box) return;
+        if (!box.checked) box.click();
+        Object.keys(sel.params).forEach(function (k) {
+          var input = $('sc3-' + sel.strategy.id + '-' + k);
+          if (input) input.value = sel.params[k];
+        });
+        var det = box.closest('details'); if (det) det.open = true;
+      });
+      $('sc3-ov-filingStatus').value = $('sc2-ov-filingStatus').value;
+      $('sc3-ov-stateRatePct').value = $('sc2-ov-stateRatePct').value;
+      $('sc3-ov-incomeMultiplier').value = $('sc2-ov-incomeMultiplier').value;
+      markFormChanged({});
+      scrollTo($('sc3-strategies'));
+    });
     $('btn-pdf').addEventListener('click', function () {
       if (lastRun) TSIQ.render.clientReport(lastRun);
     });

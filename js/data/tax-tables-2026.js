@@ -78,6 +78,18 @@ TSIQ.TABLES_2026 = {
     magiThreshold: { single: 200000, mfj: 250000, mfs: 125000, hoh: 200000 }
   },
 
+  // §461(l) excess business loss limitation threshold — NOT modeled (the
+  // engine does not disallow/carry forward the excess as an NOL), but used
+  // to raise a quantified materiality warning when aggregate business loss
+  // crosses it (see scenario-engine.js). OBBBA made §461(l) permanent AND
+  // reset the inflation base back to the original TCJA amount starting 2026,
+  // so the 2026 threshold is LOWER than 2025's: $256,000 single/HoH/MFS,
+  // $512,000 MFJ (Rev. Proc. 2025-32 §4.31; MFS/HoH take the "other than
+  // joint" figure, not half of the MFJ figure).
+  excessBusinessLoss: {
+    threshold: { single: 256000, mfj: 512000, mfs: 256000, hoh: 256000 }
+  },
+
   // SALT cap under OBBBA for 2026: $40,400 cap ($20,200 MFS), phased down by
   // 30% of MAGI over $505,000 ($252,500 MFS), but never below the $10,000 floor.
   salt: {

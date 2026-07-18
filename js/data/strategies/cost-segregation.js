@@ -143,6 +143,10 @@ TSIQ.strategyModules.push({
     if (yearIndex === 0) {
       var bonus = reclassAmt * tb.bonusDepreciationRate;
       p.rentalNet = p.rentalNet - (bonus - slPerYear) - (params.studyCost || 0);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§1250
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (bonus - slPerYear);
       notes.push('Year 1: ' + TSIQ.fmt.usd(bonus) + ' bonus depreciation on ' +
         TSIQ.fmt.usd(reclassAmt) + ' of reclassified property (100% bonus, §168(k)).');
       if (!p.rentalLossesUsable) {

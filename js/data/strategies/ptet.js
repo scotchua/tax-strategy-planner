@@ -16,6 +16,11 @@ TSIQ.strategyModules.push({
   applyOrder: 88,
   modeled: true,
 
+  // Non-blocking hint only — a client with existing K-1 income doesn't need
+  // this paired with an election in the SAME scenario; apply() already warns
+  // (and skips) if there's no pass-through income once the scenario runs.
+  requiresOneOf: ['s-corp-election'],
+
   advisor: {
     summary:
       'The partnership or S corporation elects to pay state income tax at the ' +

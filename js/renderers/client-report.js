@@ -145,6 +145,70 @@ TSIQ.render = TSIQ.render || {};
     return html + '</tr></tbody></table>';
   }
 
+  function formatParamValue(input, value) {
+    if (input.type === 'currency') return usd(value);
+    if (input.type === 'percent') return value + '%';
+    if (input.type === 'select' && input.options) {
+      var opt = input.options.filter(function (o) { return o.value === value; })[0];
+      return opt ? opt.label : value;
+    }
+    return value;
+  }
+
+  // Reproduces every number in this report from its own inputs — the client's
+  // data as entered, plus the exact parameters behind each recommended
+  // strategy in the plan (workpaper defensibility; nothing here is derived).
+  function assumptionsPage(data, best) {
+    var p = data.profile;
+    var profileRows = [
+      ['Filing status', TSIQ.FILING_STATUS_LABELS[p.filingStatus] || p.filingStatus],
+      ['W-2 wages', usd(p.wages)],
+      ['Schedule C net profit', usd(p.scheduleCNet)],
+      ['K-1 ordinary income (pass-through)', usd(p.passthroughK1)],
+      ['Specified service trade or business (SSTB)', p.isSSTB ? 'Yes' : 'No'],
+      ['Rental net income / (loss)', usd(p.rentalNet)],
+      ['Real estate professional / non-passive', p.reNonPassive ? 'Yes' : 'No'],
+      ['Long-term capital gains', usd(p.ltcg)],
+      ['Qualified dividends', usd(p.qualDiv)],
+      ['Interest income', usd(p.interest)],
+      ['Other income', usd(p.otherIncome)],
+      ['Property tax', usd(p.propertyTax)],
+      ['Mortgage interest', usd(p.mortgageInterest)],
+      ['Charitable contributions', usd(p.charitable)],
+      ['Other itemized deductions', usd(p.otherItemized)],
+      ['Qualifying children (Child Tax Credit)', p.kidsCTC],
+      ['Other dependents', p.otherDeps],
+      ['Filer/spouse age 65+ (count)', p.age65Count],
+      ['State effective tax rate', TSIQ.fmt.pct(p.stateRate)],
+      ['Assumed annual income growth', TSIQ.fmt.pct(data.growthRate)],
+      ['Projection horizon', data.years + ' years']
+    ];
+    if (p.priorYearTax) profileRows.push(['Prior-year total tax (safe-harbor basis)', usd(p.priorYearTax)]);
+    if (p.priorYearAGI) profileRows.push(['Prior-year AGI (safe-harbor basis)', usd(p.priorYearAGI)]);
+
+    var stratRows = best.selections.map(function (sel) {
+      var paramStrs = (sel.strategy.inputs || []).map(function (inp) {
+        if (sel.params[inp.key] === undefined) return null;
+        return esc(inp.label) + ': ' + esc(String(formatParamValue(inp, sel.params[inp.key])));
+      }).filter(function (s) { return s !== null; });
+      return '<tr><td>' + esc(sel.strategy.name) + '</td><td>' + (paramStrs.join('; ') || '&mdash;') + '</td></tr>';
+    }).join('');
+
+    return '<div class="page">' +
+      '<h2>Data &amp; Assumptions</h2>' +
+      '<p>For your records and ours — the figures behind every number in this report, so it can always ' +
+      'be reproduced or checked against the numbers on file.</p>' +
+      '<h3>Client data as entered</h3><table><tbody>' +
+      profileRows.map(function (r) {
+        return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(String(r[1])) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      (best.selections.length
+        ? '<h3>Strategy parameters (' + esc(best.label) + ')</h3><table><tbody>' + stratRows + '</tbody></table>'
+        : '') +
+      '<div class="disclaimer">Tax Strategy Planner v' + TSIQ.APP_VERSION + '</div>' +
+      '</div>';
+  }
+
   function strategyPage(strategy) {
     var c = strategy.client;
     return '<div class="page">' +
@@ -234,8 +298,13 @@ TSIQ.render = TSIQ.render || {};
       'planning illustrations, not a guarantee of results or a substitute for the advice engagement. State tax is ' +
       'modeled at a flat effective rate. Strategies require proper implementation and documentation to deliver ' +
       'the benefits shown. ' + esc(data.firmName) + ' will confirm final figures on your filed returns.</div>' +
-      '<div class="disclaimer">Tax Strategy Planner v' + TSIQ.APP_VERSION + '</div>' +
+      (TSIQ.isLawStale && TSIQ.isLawStale() ? '<div class="disclaimer" style="color:#a3372b;font-weight:bold">' +
+        'This plan was modeled using ' + TSIQ.TABLES_2026.taxYear + ' tax law, which is no longer the ' +
+        'current tax year — ' + esc(data.firmName) + ' will re-run this plan against current-year figures ' +
+        'before you rely on it.</div>' : '') +
       '</div>' +
+
+      assumptionsPage(data, best) +
 
       '</body></html>';
 

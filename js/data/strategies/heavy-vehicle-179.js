@@ -148,6 +148,10 @@ TSIQ.strategyModules.push({
 
     if (yearIndex === 0) {
       delta = -(businessShare - slPerYear);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§280F
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (businessShare - slPerYear);
       notes.push(TSIQ.fmt.usd(businessShare) + ' first-year write-off (§179 up to the ' +
         'indexed SUV cap, 100% bonus under §168(k) on the balance) on ' +
         TSIQ.fmt.usd(params.vehicleCost || 0) + ' × ' + Math.round(usePct * 100) + '% business use.');

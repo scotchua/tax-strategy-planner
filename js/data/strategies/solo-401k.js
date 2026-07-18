@@ -12,6 +12,11 @@ TSIQ.strategyModules.push({
   applyOrder: 61,
   modeled: true,
 
+  // Same base compensation as a SEP for the same self-employment income
+  // (§415(c) coordination already caps both via state.dcAnnualAdditionsUsed);
+  // Notice 98-4 bars pairing with a SIMPLE for the same year.
+  conflictsWith: ['sep-ira', 'simple-ira'],
+
   advisor: {
     summary:
       'A one-participant 401(k) for an owner (and spouse) with no common-law ' +

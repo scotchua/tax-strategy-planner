@@ -12,6 +12,12 @@ TSIQ.strategyModules.push({
   applyOrder: 63,
   modeled: true,
 
+  // Notice 98-4: an employer with a SIMPLE for a year can't maintain any
+  // other qualified plan for that year — same restriction apply() already
+  // enforces via state.hasQualifiedPlan, surfaced here for the picker UI.
+  conflictsWith: ['solo-401k', 'sep-ira', 'cash-balance-stack',
+    'defined-benefit-plan', 'profit-sharing-new-comparability'],
+
   advisor: {
     summary:
       'A §408(p) Savings Incentive Match Plan for employers with 100 or fewer ' +

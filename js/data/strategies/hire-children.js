@@ -115,7 +115,7 @@ TSIQ.strategyModules.push({
 
   inputs: [
     { key: 'numChildren', label: 'Number of children employed', type: 'number', default: 1 },
-    { key: 'wagesPerChild', label: 'Annual wages per child', type: 'currency', default: 16100 },
+    { key: 'wagesPerChild', label: 'Annual wages per child', type: 'currency', default: 16100, grows: true },
     { key: 'payer', label: 'Who pays the kids', type: 'select', default: 'fmc',
       options: [
         { value: 'fmc', label: 'Sole prop / Family Mgmt Co (no FICA)' },

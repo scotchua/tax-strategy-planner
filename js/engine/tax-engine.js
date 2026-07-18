@@ -302,6 +302,12 @@ window.TSIQ = window.TSIQ || {};
     var fedBalanceDue = totalFederal - fedPayments;
     var stateBalanceDue = personalStateTax - statePayments;
 
+    // ---- §461(l) excess business loss — NOT modeled (not disallowed/carried
+    // forward here as an NOL); flagged as a quantified exposure only. Nets
+    // trade-or-business results only (wages, investment income excluded). ----
+    var netBusinessResult = p.scheduleCNet + p.passthroughK1 + p.rentalNet;
+    var excessBusinessLoss = Math.max(0, -netBusinessResult - tb.excessBusinessLoss.threshold[fs]);
+
     return {
       profile: p,
       totalIncome: totalIncome, agi: agi, capitalLossDisallowed: capitalLossDisallowed,
@@ -325,6 +331,7 @@ window.TSIQ = window.TSIQ || {};
       totalFederal: totalFederal,
       personalStateTax: personalStateTax, ptetPaid: p.ptetPaid,
       unusedPtetCredit: unusedPtetCredit,
+      excessBusinessLoss: excessBusinessLoss,
       totalState: totalState, totalBurden: totalBurden,
       suspendedRentalLossAdded: suspendedAdded,
       suspendedRentalLossUsed: suspendedUsed,

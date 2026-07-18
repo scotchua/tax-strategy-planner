@@ -122,9 +122,9 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'ownerSalary', label: 'Owner W-2 salary (reasonable comp)', type: 'currency', default: 120000 },
+    { key: 'ownerSalary', label: 'Owner W-2 salary (reasonable comp)', type: 'currency', default: 120000, grows: true },
     { key: 'dividendsPaid', label: 'Annual dividends paid to owner', type: 'currency', default: 0 },
-    { key: 'adminCost', label: 'Annual payroll + 1120 compliance cost', type: 'currency', default: 3000 }
+    { key: 'adminCost', label: 'Annual payroll + 1120 compliance cost', type: 'currency', default: 3000, grows: true }
   ],
 
   appliesTo: function (profile) {

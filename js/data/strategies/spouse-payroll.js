@@ -110,7 +110,7 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'spouseSalary', label: 'Annual spouse salary', type: 'currency', default: 30000 },
+    { key: 'spouseSalary', label: 'Annual spouse salary', type: 'currency', default: 30000, grows: true },
     { key: 'spouse401kDeferral', label: 'Spouse 401(k) deferral', type: 'currency', default: 24500 }
   ],
 

@@ -156,6 +156,10 @@ TSIQ.strategyModules.push({
       }
       var bonus = basis * tb.bonusDepreciationRate;
       p[route] = (p[route] || 0) - (bonus - sl);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§1250
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (bonus - sl);
       notes.push('Year 1: ' + TSIQ.fmt.usd(bonus) + ' bonus depreciation on QIP ' +
         '(15-year property, §168(e)(6); 100% bonus, §168(k)) — modeled net of the ' +
         TSIQ.fmt.usd(sl) + ' straight-line slice a 39-year baseline would have taken. ' +

@@ -12,6 +12,10 @@ TSIQ.strategyModules.push({
   applyOrder: 37,
   modeled: true,
 
+  // Non-blocking hint only — an existing S-corp owner (ownerWages already
+  // entered) doesn't need the election paired in the SAME scenario.
+  requiresOneOf: ['s-corp-election'],
+
   advisor: {
     summary:
       'A more-than-2% S corporation shareholder is treated as a partner for ' +
