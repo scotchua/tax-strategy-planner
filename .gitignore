@@ -1,0 +1,55 @@
+# ============================================================================
+#  Tax Strategy Planner — files that must never enter version control
+#
+#  The first block is the important one. This app's whole job is handling real
+#  client return data, and it writes/reads that data as files that land in
+#  THIS folder by default (Export Client File, Import Return (PDF)). A client
+#  file committed here would put a named client's full return data into git
+#  history permanently — a disclosure problem under IRC 7216 and the firm's
+#  acceptable-use policy, and one that survives deleting the file later.
+# ============================================================================
+
+# Client data — exports from this app (see docs/client-file-format.md)
+*.tsiq.json
+
+# Client returns and any other client documents dropped in the folder
+*.pdf
+*.PDF
+*.csv
+*.xlsx
+*.xls
+
+# Generated client deliverables, if ever saved to disk rather than printed
+*client-report*.html
+*slideshow*.html
+*pitch*.html
+
+# ---------------------------------------------------------------------------
+#  Ordinary noise
+# ---------------------------------------------------------------------------
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node — only scripts/*.js run under Node; nothing here is needed at runtime,
+# but a stray `npm install` while poking at the validator would drop this in.
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Scratch
+tmp/
+temp/
+scratch/
+*.bak
+*.orig
