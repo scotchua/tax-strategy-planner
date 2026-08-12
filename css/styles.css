@@ -411,6 +411,13 @@ ul.notes li { margin-bottom: 6px; }
 }
 .swatch:hover { transform: scale(1.15); }
 .swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Which preset is currently chosen. Previously nothing marked the selection,
+   so the six swatches gave no feedback on click. Uses a dark ring rather than
+   the accent colour itself, which would be invisible against the swatch. */
+.swatch.selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+  transform: scale(1.08);
+}
 #brand-logo-preview { max-height: 50px; max-width: 180px; margin-top: 8px; display: none; border-radius: 6px; }
 #brand-logo-preview.show { display: block; }
 .brand-actions { display: flex; gap: 10px; margin-top: 22px; }

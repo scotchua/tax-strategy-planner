@@ -204,6 +204,30 @@
     if ($('firmName')) $('firmName').value = b.name;
   }
 
+  // Live colour preview while the Brand Settings modal is open. Only touches
+  // the two CSS variables, deliberately NOT TSIQ.brand or localStorage — so
+  // closing the modal without saving can put the previous colour straight
+  // back, and an abandoned preview can never leak into a client document.
+  function previewAccent(hex) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return; // half-typed value mid-edit
+    document.documentElement.style.setProperty('--accent', hex);
+    document.documentElement.style.setProperty('--accent-text', readableAccentText(hex));
+  }
+  function cancelAccentPreview() {
+    previewAccent(TSIQ.brand.color); // TSIQ.brand still holds the SAVED colour
+    markSelectedSwatch(TSIQ.brand.color); // don't leave the ring on an abandoned pick
+  }
+  // Ring the swatch matching the current colour, so it's obvious which of the
+  // six presets is active (previously nothing indicated the selection).
+  function markSelectedSwatch(hex) {
+    var swatches = document.querySelectorAll('.swatch');
+    for (var i = 0; i < swatches.length; i++) {
+      var isMatch = (swatches[i].getAttribute('data-color') || '').toLowerCase() === String(hex).toLowerCase();
+      swatches[i].classList.toggle('selected', isMatch);
+      swatches[i].setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+    }
+  }
+
   function initBrand() {
     applyBrand(loadBrand());
     var pendingLogo = null;
@@ -212,6 +236,7 @@
       var b = TSIQ.brand;
       $('brand-name-input').value = b.name;
       $('brand-color-input').value = b.color;
+      markSelectedSwatch(b.color);
       pendingLogo = b.logo || null;
       var prev = $('brand-logo-preview');
       if (b.logo) { prev.src = b.logo; prev.classList.add('show'); }
@@ -222,12 +247,29 @@
     $('brand-modal').addEventListener('click', function (e) {
       if (e.target === $('brand-modal')) $('brand-modal').close();
     });
+    // Covers every way the dialog can close (button, backdrop, Esc) — always
+    // discard an unsaved preview rather than leaving the app a colour the
+    // advisor didn't commit to.
+    $('brand-modal').addEventListener('close', cancelAccentPreview);
+
     var swatches = document.querySelectorAll('.swatch');
     for (var i = 0; i < swatches.length; i++) {
       swatches[i].addEventListener('click', function (e) {
-        $('brand-color-input').value = e.currentTarget.getAttribute('data-color');
+        var hex = e.currentTarget.getAttribute('data-color');
+        $('brand-color-input').value = hex;
+        markSelectedSwatch(hex);
+        previewAccent(hex);
       });
     }
+    // The native colour picker fires `input` continuously while dragging and
+    // `change` on commit — preview on both so choosing a custom colour looks
+    // the same as clicking a preset.
+    ['input', 'change'].forEach(function (evt) {
+      $('brand-color-input').addEventListener(evt, function (e) {
+        markSelectedSwatch(e.target.value);
+        previewAccent(e.target.value);
+      });
+    });
     $('brand-logo-input').addEventListener('change', function (e) {
       var file = e.target.files && e.target.files[0];
       if (!file) return;
