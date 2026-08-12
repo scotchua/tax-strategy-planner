@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'QBI Optimization',
   applyOrder: 23, // after wage/aggregation moves; manages taxable income last
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 11, // restructures income right after S-corp election in ordering
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:
@@ -122,9 +123,10 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'ownerSalary', label: 'Owner W-2 salary (reasonable comp)', type: 'currency', default: 120000 },
+    { key: 'ownerSalary', label: 'Owner W-2 salary (reasonable comp)', type: 'currency', default: 120000, grows: true },
     { key: 'dividendsPaid', label: 'Annual dividends paid to owner', type: 'currency', default: 0 },
-    { key: 'adminCost', label: 'Annual payroll + 1120 compliance cost', type: 'currency', default: 3000 }
+    { key: 'adminCost', label: 'Annual payroll + 1120 compliance cost', type: 'currency', default: 3000, grows: true },
+    { key: 'corpStateRatePct', label: 'Corporate state income tax rate (%) — 0 for WY/SD/NV/TX/OH/WA-type states', type: 'percent', default: 5 }
   ],
 
   appliesTo: function (profile) {
@@ -135,10 +137,13 @@ TSIQ.strategyModules.push({
    * Converts Schedule C income into: owner W-2 wages + corporate profit taxed
    * at the flat 21% rate (§11) + an optional qualified-dividend layer.
    * Employer FICA and admin cost reduce corporate profit. Retained (undistributed)
-   * profit bears only the 21% tax in this model; dividends actually paid are
-   * added to qualDiv, creating the double-tax layer on the personal return.
-   * Simplification: dividends are assumed paid from current/accumulated E&P
-   * (fully qualified); corporate-level state tax is not modeled.
+   * profit bears the 21% federal rate plus an entity-level state rate
+   * (`corpStateRatePct`, SF1 — 0 for no-corporate-income-tax states) in this
+   * model; dividends actually paid are added to qualDiv, creating the
+   * double-tax layer on the personal return. Simplification: dividends are
+   * assumed paid from current/accumulated E&P (fully qualified); the state
+   * rate is a flat starting-point estimate, not an apportioned multi-state
+   * computation.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -146,6 +151,12 @@ TSIQ.strategyModules.push({
     if (p.scheduleCNet <= 0) {
       notes.push('No Schedule C (sole proprietorship) profit found — nothing to convert. ' +
         'This strategy models incorporating a sole proprietorship as a C corporation.');
+      return { profile: p, notes: notes };
+    }
+    if (!(params.ownerSalary > 0)) {
+      notes.push('No reasonable compensation entered — a C corporation must pay its ' +
+        'owner-employee a reasonable W-2 salary before the remainder is taxed at the ' +
+        'entity level. Enter a salary to model this strategy; nothing is modeled at $0.');
       return { profile: p, notes: notes };
     }
     var tb = TSIQ.TABLES_2026;
@@ -158,8 +169,11 @@ TSIQ.strategyModules.push({
       salary * (f.medicareRate / 2);
     var corpProfit = p.scheduleCNet - salary - employerFICA - (params.adminCost || 0);
     var corpTax = Math.max(0, corpProfit) * tb.corporateRate;
+    var corpStateRate = (params.corpStateRatePct !== undefined ? params.corpStateRatePct : 5) / 100;
+    var corpStateTax = Math.max(0, corpProfit) * corpStateRate;
 
     p.corpTaxPaid = (p.corpTaxPaid || 0) + corpTax;
+    p.entityStateTax = (p.entityStateTax || 0) + corpStateTax;
     p.ownerWages = (p.ownerWages || 0) + salary;
     p.qualDiv = (p.qualDiv || 0) + (params.dividendsPaid || 0);
     p.scheduleCNet = 0;
@@ -167,7 +181,11 @@ TSIQ.strategyModules.push({
     if (yearIndex === 0) {
       notes.push('C-corp profit of ' + TSIQ.fmt.usd(Math.max(0, corpProfit)) +
         ' taxed at the flat 21% rate (§11): ' + TSIQ.fmt.usd(corpTax) +
-        ' corporate tax. Retained earnings compound at 21% instead of your personal rate.');
+        ' corporate tax' + (corpStateTax > 0 ? ' plus ' + TSIQ.fmt.usd(corpStateTax) +
+        ' of entity-level state corporate tax (' + TSIQ.fmt.pct(corpStateRate) + ', a flat ' +
+        'starting-point estimate)' : ' — no entity-level state tax entered (0%, e.g. WY/SD/NV, ' +
+        'or a gross-receipts-tax state like TX/OH/WA not modeled here)') +
+        '. Retained earnings compound at that combined rate instead of your personal rate.');
       if ((params.dividendsPaid || 0) > 0) {
         notes.push(TSIQ.fmt.usd(params.dividendsPaid) + ' of dividends modeled as ' +
           'qualified dividends on the personal return — the double-tax layer (§301/§316).');

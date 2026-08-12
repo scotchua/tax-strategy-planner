@@ -11,6 +11,13 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 63,
   modeled: true,
+  character: 'deferral', // ET2
+
+  // Notice 98-4: an employer with a SIMPLE for a year can't maintain any
+  // other qualified plan for that year — same restriction apply() already
+  // enforces via state.hasQualifiedPlan, surfaced here for the picker UI.
+  conflictsWith: ['solo-401k', 'sep-ira', 'cash-balance-stack',
+    'defined-benefit-plan', 'profit-sharing-new-comparability'],
 
   advisor: {
     summary:
@@ -105,7 +112,9 @@ TSIQ.strategyModules.push({
 
   inputs: [
     { key: 'deferral', label: 'Owner deferral', type: 'currency', default: 17000 },
-    { key: 'matchAmount', label: 'Employer match (owner)', type: 'currency', default: 5000 }
+    { key: 'matchAmount', label: 'Employer match (owner)', type: 'currency', default: 5000 },
+    { key: 'age50Plus', label: 'Owner age 50 or older?', type: 'select', default: 'no',
+      options: [{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes (50+)' }] }
   ],
 
   appliesTo: function (profile) {
@@ -116,8 +125,8 @@ TSIQ.strategyModules.push({
    * Owner amounts only — staff match cost is flagged, not modeled. Self-employed:
    * deferral + match are above-the-line and reduce QBI. S corp owner: deferral
    * reduces Box 1 wages (modeled via adjustments; FICA unchanged), match is an
-   * entity deduction against passthroughK1. Deferral capped at $17,000 (catch-up
-   * not modeled — no age input; note emitted). Match capped at 3% of compensation.
+   * entity deduction against passthroughK1. Deferral capped at $17,000 + $4,000
+   * age-50 catch-up (SF4). Match capped at 3% of compensation.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -134,14 +143,31 @@ TSIQ.strategyModules.push({
       return { profile: p, notes: notes };
     }
 
+    // An employer generally cannot maintain a SIMPLE IRA in the same year it
+    // maintains another qualified retirement plan (Notice 98-4, Q&A E-1) —
+    // if a Solo 401(k) / SEP-IRA / profit-sharing / cash balance / DB
+    // strategy already ran in this scenario, no SIMPLE benefit is modeled.
+    if (state.hasQualifiedPlan) {
+      if (yearIndex === 0) {
+        notes.push('Another qualified plan (Solo 401(k) / SEP-IRA / profit-sharing / cash ' +
+          'balance / defined benefit) is also selected in this scenario — an employer ' +
+          'generally cannot maintain a SIMPLE IRA in the same year as another qualified ' +
+          'plan (Notice 98-4). No SIMPLE benefit modeled; choose one plan type.');
+      }
+      state.hasSimplePlan = true;
+      return { profile: p, notes: notes };
+    }
+    state.hasSimplePlan = true;
+
     // Compensation base: net SE earnings (0.9235 factor) or owner W-2 wages.
     var comp = isSE ? p.scheduleCNet * 0.9235 : p.ownerWages;
+    var is50 = params.age50Plus === 'yes';
+    var catchUp = is50 ? lim.simpleCatchUp50 : 0;
 
-    var deferral = Math.min(params.deferral || 0, lim.simpleDeferral, comp);
-    if ((params.deferral || 0) > lim.simpleDeferral && yearIndex === 0) {
-      notes.push('Deferral capped at ' + TSIQ.fmt.usd(lim.simpleDeferral) + ' (2026 SIMPLE limit). ' +
-        'A further ' + TSIQ.fmt.usd(lim.simpleCatchUp50) + ' catch-up is available at age 50+ — ' +
-        'not modeled without an age input.');
+    var deferral = Math.min(params.deferral || 0, lim.simpleDeferral + catchUp, comp);
+    if ((params.deferral || 0) > lim.simpleDeferral + catchUp && yearIndex === 0) {
+      notes.push('Deferral capped at ' + TSIQ.fmt.usd(lim.simpleDeferral + catchUp) +
+        ' (2026 SIMPLE limit' + (is50 ? ' + age-50 catch-up' : '') + ').');
     }
 
     var matchCap = comp * 0.03; // 3% match formula

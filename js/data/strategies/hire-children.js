@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Hiring Children Under 18',
   category: 'Payroll & Family',
   applyOrder: 31,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:
@@ -114,7 +116,7 @@ TSIQ.strategyModules.push({
 
   inputs: [
     { key: 'numChildren', label: 'Number of children employed', type: 'number', default: 1 },
-    { key: 'wagesPerChild', label: 'Annual wages per child', type: 'currency', default: 16100 },
+    { key: 'wagesPerChild', label: 'Annual wages per child', type: 'currency', default: 16100, grows: true },
     { key: 'payer', label: 'Who pays the kids', type: 'select', default: 'fmc',
       options: [
         { value: 'fmc', label: 'Sole prop / Family Mgmt Co (no FICA)' },
@@ -133,8 +135,10 @@ TSIQ.strategyModules.push({
   },
 
   /**
-   * Two payer modes. Kids are always assumed at 0% income tax (default wage
-   * equals the 2026 standard deduction; a note flags any excess).
+   * Two payer modes. Kids are always assumed at 0% income tax, so the
+   * MODELED wage per child is capped at the single standard deduction
+   * ($16,100, 2026) — any amount entered above that is not deducted from the
+   * parent's income (a note flags it as taxable to the child, not modeled).
    *
    * 'fmc' — Sole prop / Family Management Company (FICA-EXEMPT wages,
    *   §3121(b)(3)(A)):
@@ -161,7 +165,9 @@ TSIQ.strategyModules.push({
     var f = tb.fica;
 
     var kids = Math.max(0, Math.round(params.numChildren || 0));
-    var perChild = params.wagesPerChild || 0;
+    var perChildEntered = params.wagesPerChild || 0;
+    var wageCap = tb.standardDeduction.single;
+    var perChild = Math.min(perChildEntered, wageCap);
     var totalWages = kids * perChild;
     var payer = params.payer || 'fmc';
     if (totalWages <= 0) return { profile: p, notes: notes };
@@ -230,12 +236,16 @@ TSIQ.strategyModules.push({
 
     if (yearIndex === 0) {
       notes.push('Kids assumed at 0% income tax: wages up to the ' +
-        TSIQ.fmt.usd(tb.standardDeduction.single) + ' standard deduction are income-tax-free ' +
+        TSIQ.fmt.usd(wageCap) + ' standard deduction are income-tax-free ' +
         'to the child. Work must be real, age-appropriate, documented (timesheets), and ' +
         'paid at market rate.');
-      if (perChild > tb.standardDeduction.single) {
-        notes.push('Wages per child exceed the standard deduction — the excess is taxable ' +
-          'on the child\'s return (not modeled here).');
+      if (perChildEntered > wageCap) {
+        var excessPerChild = perChildEntered - wageCap;
+        notes.push(TSIQ.fmt.usd(excessPerChild) + ' per child entered above the ' +
+          TSIQ.fmt.usd(wageCap) + ' standard deduction is NOT deducted from the parent\'s ' +
+          'income here — it would be taxable on the child\'s own return at the child\'s rate, ' +
+          'which this tool does not model. Only ' + TSIQ.fmt.usd(perChild) + '/child is reflected ' +
+          'in the numbers above.');
       }
     }
     return { profile: p, notes: notes };

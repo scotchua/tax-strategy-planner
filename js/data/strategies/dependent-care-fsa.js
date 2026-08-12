@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Dependent Care FSA',
   category: 'Health & Fringe',
   applyOrder: 77,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

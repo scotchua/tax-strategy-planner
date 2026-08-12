@@ -19,6 +19,10 @@ app's **Import Client File** button. One file per client.
    conclusions. The advisor validates every one.
 6. Prior-year returns use prior-year law; the app computes 2026. Flag any
    figure that is likely to change materially in `notes`.
+7. `priorYearTax`/`priorYearAGI` come from the SAME return's own total-tax
+   (Form 1040 line 24) and AGI (line 11) — the return you are reading to
+   populate everything else IS the prior year for §6654 safe-harbor
+   purposes.
 
 ## Schema
 
@@ -33,15 +37,20 @@ app's **Import Client File** button. One file per client.
     "scheduleCNet": 0,               // Schedule C net profit
     "passthroughK1": 0,              // S-corp/partnership ordinary income
     "entityW2Wages": 0,              // W-2 wages paid by the entity (§199A)
+    "ownerWages": 0,                 // client's OWN W-2 wages from that entity (existing S-corp owner)
     "isSSTB": false,
     "rentalNet": 0,                  // Schedule E net rental
     "rentalLossesUsable": true,
+    "reNonPassive": false,           // real-estate professional / materially participates
     "ltcg": 0, "qualDiv": 0, "interest": 0, "otherIncome": 0,
     "propertyTax": 0, "mortgageInterest": 0, "charitable": 0, "otherItemized": 0,
     "kidsCTC": 0,                    // qualifying children under 17
     "otherDeps": 0,
+    "age65Count": 0,                 // count (0-2) of filer/spouse age 65+
     "fedWithholding": 0, "fedEstimates": 0,
     "stateWithholding": 0, "stateEstimates": 0,
+    "priorYearTax": 0,               // prior-year Form 1040 total tax (§6654 safe-harbor input)
+    "priorYearAGI": 0,               // prior-year AGI (§6654 100%/110% test)
     "stateRatePct": 5,               // percent, not decimal
     "years": 10, "growthPct": 3
   },

@@ -10,6 +10,13 @@ TSIQ.strategyModules.push({
   name: 'Solo 401(k)',
   category: 'Retirement',
   applyOrder: 61,
+  modeled: true,
+  character: 'deferral', // ET2
+
+  // Same base compensation as a SEP for the same self-employment income
+  // (§415(c) coordination already caps both via state.dcAnnualAdditionsUsed);
+  // Notice 98-4 bars pairing with a SIMPLE for the same year.
+  conflictsWith: ['sep-ira', 'simple-ira'],
 
   advisor: {
     summary:
@@ -106,10 +113,17 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'employeeDeferral', label: 'Employee deferral', type: 'currency', default: 24500 },
-    { key: 'employerContribution', label: 'Employer contribution', type: 'currency', default: 20000 },
-    { key: 'age50Plus', label: 'Owner age 50 or older?', type: 'select', default: 'no',
-      options: [{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes (50+)' }] }
+    { key: 'employeeDeferral', label: 'Employee deferral', type: 'currency', default: 24500, solveable: true },
+    { key: 'employerContribution', label: 'Employer contribution', type: 'currency', default: 20000, solveable: true },
+    { key: 'ageCatchUpTier', label: 'Owner age (catch-up tier)', type: 'select', default: 'none',
+      options: [
+        { value: 'none', label: 'Under 50 — no catch-up' },
+        { value: '50to59', label: '50–59' },
+        { value: '60to63', label: '60–63 (SECURE 2.0 enhanced catch-up)' },
+        { value: '64plus', label: '64 or older' }
+      ] },
+    { key: 'priorYearWagesOver150k', label: 'Prior-year compensation from this business over $150k?', type: 'select', default: 'no',
+      options: [{ value: 'no', label: 'No' }, { value: 'yes', label: 'Yes (catch-up must be Roth)' }] }
   ],
 
   suggest: function (p) {
@@ -128,16 +142,23 @@ TSIQ.strategyModules.push({
    * S corp owner (ownerWages): deferral reduces Box 1 wages — modeled via
    * adjustments so FICA (which still applies to deferrals) is untouched; the
    * employer contribution is an entity deduction against passthroughK1.
-   * Caps: deferral at §402(g) (+catch-up if 50+); employer at the 25%/~20%
+   * Caps: deferral at §402(g) (+age-tiered catch-up); employer at the 25%/~20%
    * compensation-based max; combined at §415(c) $72,000 (+catch-up on top).
-   * 60–63 enhanced catch-up not modeled (no age detail beyond 50+).
+   * SF4: the 60–63 catch-up tier is the SECURE 2.0 enhanced $11,250 amount;
+   * 50–59 and 64+ get the standard $8,000. If prior-year compensation from
+   * this business exceeded the indexed threshold, §414(v)(7) (SECURE 2.0
+   * §603) forces the catch-up portion to be a Roth (after-tax) contribution
+   * — it still counts toward the same §402(g)/§415(c) limits, but is NOT
+   * deductible, so it's excluded from the modeled deduction below.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
     var lim = TSIQ.TABLES_2026.limits.retirement;
-    var is50 = params.age50Plus === 'yes';
-    var catchUp = is50 ? lim.catchUp50 : 0;
+    var tier = params.ageCatchUpTier || 'none';
+    var is50 = tier !== 'none';
+    var catchUp = tier === '60to63' ? lim.catchUp60to63 : (is50 ? lim.catchUp50 : 0);
+    var rothMandatory = is50 && params.priorYearWagesOver150k === 'yes';
 
     var isSE = p.scheduleCNet > 0;
     var isW2Owner = !isSE && p.ownerWages > 0;
@@ -159,8 +180,8 @@ TSIQ.strategyModules.push({
     var deferral = Math.min(params.employeeDeferral || 0, lim.electiveDeferral401k + catchUp, comp);
     if ((params.employeeDeferral || 0) > lim.electiveDeferral401k + catchUp && yearIndex === 0) {
       notes.push('Employee deferral capped at ' + TSIQ.fmt.usd(lim.electiveDeferral401k + catchUp) +
-        ' (§402(g)' + (is50 ? ' + age-50 catch-up' : '') + ', 2026). Ages 60–63 allow ' +
-        TSIQ.fmt.usd(lim.catchUp60to63) + ' of catch-up — tell us if that applies.');
+        ' (§402(g)' + (catchUp > 0 ? ' + ' + (tier === '60to63' ? 'age 60–63 enhanced' : 'age-50') +
+        ' catch-up' : '') + ', 2026).');
     }
 
     var employer = Math.min(params.employerContribution || 0, employerMax);
@@ -177,22 +198,53 @@ TSIQ.strategyModules.push({
       employer = Math.max(0, totalCap - deferral);
       if (yearIndex === 0) {
         notes.push('Combined contributions capped at ' + TSIQ.fmt.usd(totalCap) +
-          ' (§415(c) annual additions' + (is50 ? ' + catch-up' : '') + ', 2026).');
+          ' (§415(c) annual additions' + (catchUp > 0 ? ' + catch-up' : '') + ', 2026).');
       }
     }
 
-    var total = deferral + employer;
+    // §415(c) is a per-employer cap SHARED across every defined-contribution
+    // plan (Solo 401(k), SEP-IRA, profit-sharing) the same business maintains
+    // in the same year — track the running total across strategies via `state`.
+    state.dcAnnualAdditionsUsed = state.dcAnnualAdditionsUsed || 0;
+    var headroom = Math.max(0, totalCap - state.dcAnnualAdditionsUsed);
+    if (deferral + employer > headroom) {
+      employer = Math.max(0, headroom - deferral);
+      if (deferral > headroom) deferral = headroom;
+      if (yearIndex === 0) {
+        notes.push('Reduced further because another defined-contribution plan (SEP-IRA / ' +
+          'profit-sharing) in this scenario already used ' +
+          TSIQ.fmt.usd(state.dcAnnualAdditionsUsed) + ' of the shared §415(c) limit — ' +
+          'these plans do not stack independently.');
+      }
+    }
+    state.dcAnnualAdditionsUsed += deferral + employer;
+    state.hasQualifiedPlan = true;
+
+    // SF4 / §414(v)(7): the catch-up PORTION of the final deferral is Roth
+    // (after-tax, no deduction) when mandatory — still counts toward the
+    // limits above, just not toward the income-tax deduction below.
+    var catchUpUsed = Math.max(0, deferral - lim.electiveDeferral401k);
+    var deductibleDeferral = rothMandatory ? deferral - catchUpUsed : deferral;
+
+    var total = deductibleDeferral + employer;
     if (isSE) {
       p.adjustments = (p.adjustments || 0) + total;
       p.qbiReduction = (p.qbiReduction || 0) + total; // SE retirement deduction reduces §199A QBI
     } else {
-      p.adjustments = (p.adjustments || 0) + deferral;      // Box 1 reduction; FICA unchanged
+      p.adjustments = (p.adjustments || 0) + deductibleDeferral; // Box 1 reduction; FICA unchanged
       p.passthroughK1 = p.passthroughK1 - employer;          // entity deduction (also reduces QBI)
     }
+    if (rothMandatory && catchUpUsed > 0 && yearIndex === 0) {
+      notes.push('Prior-year compensation exceeded ' + TSIQ.fmt.usd(lim.rothCatchupWageThreshold) +
+        ', so §414(v)(7) (SECURE 2.0 §603) requires the ' + TSIQ.fmt.usd(catchUpUsed) +
+        ' catch-up to be a Roth (after-tax) contribution — it still counts toward the ' +
+        '§402(g)/§415(c) limits above but is excluded from the deduction modeled here.');
+    }
     if (yearIndex === 0) {
-      notes.push(TSIQ.fmt.usd(total) + ' total Solo 401(k) contribution modeled (' +
-        TSIQ.fmt.usd(deferral) + ' deferral + ' + TSIQ.fmt.usd(employer) + ' employer). ' +
-        'Deferrals do not reduce SE/FICA tax.');
+      notes.push(TSIQ.fmt.usd(deferral + employer) + ' total Solo 401(k) contribution modeled (' +
+        TSIQ.fmt.usd(deferral) + ' deferral + ' + TSIQ.fmt.usd(employer) + ' employer)' +
+        (total < deferral + employer ? ', of which ' + TSIQ.fmt.usd(total) +
+        ' is deductible (Roth catch-up excluded)' : '') + '. Deferrals do not reduce SE/FICA tax.');
     }
     return { profile: p, notes: notes };
   }

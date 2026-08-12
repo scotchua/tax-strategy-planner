@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Section 105 Medical Reimbursement Plan (Spouse Employee)',
   category: 'Health & Fringe',
   applyOrder: 75,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

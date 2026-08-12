@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Section 127 Educational Assistance',
   category: 'Health & Fringe',
   applyOrder: 78,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -9,7 +9,18 @@ TSIQ.strategyModules.push({
   id: 'ptet',
   name: 'Pass-Through Entity Tax (PTET) Election',
   category: 'Entity Structure',
-  applyOrder: 20, // runs after S-corp election so it sees entity income
+  // Runs after essentially every other strategy that touches passthroughK1
+  // (retirement plans, health strategies, Augusta rent, family management
+  // company, etc.) so the PTET base reflects the FINAL K-1 income, not a
+  // stale pre-deduction figure.
+  applyOrder: 88,
+  modeled: true,
+  character: 'permanent', // ET2
+
+  // Non-blocking hint only — a client with existing K-1 income doesn't need
+  // this paired with an election in the SAME scenario; apply() already warns
+  // (and skips) if there's no pass-through income once the scenario runs.
+  requiresOneOf: ['s-corp-election'],
 
   advisor: {
     summary:
@@ -109,9 +120,11 @@ TSIQ.strategyModules.push({
 
   /**
    * Reduces federal passthrough income by the entity-level tax paid, and
-   * credits that tax against the personal state liability (the engine treats
-   * profile.ptetPaid as a credit and includes it in total state burden, so
-   * total state tax stays ~flat while federal income drops).
+   * credits that tax against the personal state liability. profile.ptetPaid
+   * is the state-level credit; profile.ptetDeducted tells the engine how
+   * much K-1 income to add back when computing the STATE tax base, so the
+   * owner's state bill stays flat (matching the client copy's promise)
+   * while the federal K-1 reduction still lowers the federal bill.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -125,10 +138,18 @@ TSIQ.strategyModules.push({
     var ptet = p.passthroughK1 * rate;
     p.passthroughK1 = p.passthroughK1 - ptet;
     p.ptetPaid = (p.ptetPaid || 0) + ptet;
+    p.ptetDeducted = (p.ptetDeducted || 0) + ptet;
     if (yearIndex === 0) {
       notes.push('Entity pays ' + TSIQ.fmt.usd(ptet) + ' of state tax, fully deductible ' +
-        'federally (Notice 2020-75); owner receives an equal state credit.');
+        'federally (Notice 2020-75); owner receives an equal state credit — the state bill ' +
+        'stays flat (assuming the PTET rate matches your effective state rate); only the ' +
+        'federal bill drops.');
       notes.push('Federal benefit shown is net of the §199A interaction (PTET also reduces QBI).');
+      if (rate !== p.stateRate) {
+        notes.push('PTET rate (' + TSIQ.fmt.pct(rate) + ') differs from the entered state ' +
+          'effective rate (' + TSIQ.fmt.pct(p.stateRate) + ') — the state-neutrality assumption ' +
+          'above does not exactly hold; verify against the state\'s actual PTET rate.');
+      }
     }
     return { profile: p, notes: notes };
   }

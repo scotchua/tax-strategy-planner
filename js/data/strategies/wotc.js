@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Work Opportunity Tax Credit',
   category: 'Credits & Incentives',
   applyOrder: 82,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:
@@ -114,7 +116,8 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'creditAmount', label: 'Total WOTC for the year (net)', type: 'currency', default: 9600 }
+    { key: 'creditAmount', label: 'Total WOTC for the year (net)', type: 'currency', default: 9600 },
+    { key: 'yearsClaimed', label: 'Years to project this credit (hiring pace may not repeat)', type: 'number', default: 1, min: 1 }
   ],
 
   appliesTo: function (profile) {
@@ -130,15 +133,20 @@ TSIQ.strategyModules.push({
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
     var notes = [];
+    var yearsClaimed = Math.max(1, Math.round(params.yearsClaimed || 1));
+    if (yearIndex >= yearsClaimed) return { profile: p, notes: notes };
     var amt = Math.max(0, params.creditAmount || 0);
     p.otherCredits = (p.otherCredits || 0) + amt;
     if (yearIndex === 0) {
-      notes.push(TSIQ.fmt.usd(amt) + ' WOTC applied (nonrefundable). Wage deduction ' +
+      notes.push(TSIQ.fmt.usd(amt) + ' WOTC applied (nonrefundable) for ' + yearsClaimed +
+        (yearsClaimed === 1 ? ' year' : ' years') + ' of the projection. Wage deduction ' +
         'is reduced by the credit under §280C(a) — enter the net figure; the model ' +
         'does not separately reduce business income.');
       notes.push('VERIFY: WOTC statutory authorization ran through hires beginning ' +
         'work by 12/31/2025 — confirm extension before relying on this for later hires. ' +
-        'Projection assumes similar qualifying hires each year.');
+        'Defaults to year 1 only rather than assuming this hiring pace repeats every ' +
+        'projection year — raise "years to project" if the client hires at this ' +
+        'certified-group pace consistently.');
     }
     return { profile: p, notes: notes };
   }

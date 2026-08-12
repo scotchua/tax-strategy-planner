@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Paid Family & Medical Leave Credit (§45S)',
   category: 'Credits & Incentives',
   applyOrder: 87,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

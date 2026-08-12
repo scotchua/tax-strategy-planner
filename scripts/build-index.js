@@ -27,6 +27,15 @@ if (i === -1 || j === -1) {
   console.error('Markers not found in index.html — aborting.');
   process.exit(1);
 }
+if (j < i) {
+  console.error('END marker precedes BEGIN marker — index.html looks corrupted (bad manual edit ' +
+    'or merge conflict resolution) — aborting rather than duplicating the region between them.');
+  process.exit(1);
+}
 var out = html.slice(0, i + begin.length) + '\n' + tags + '\n' + html.slice(j);
-fs.writeFileSync(htmlPath, out);
+// Write to a temp file and rename so a crash mid-write can't leave
+// index.html half-written.
+var tmpPath = htmlPath + '.tmp';
+fs.writeFileSync(tmpPath, out);
+fs.renameSync(tmpPath, htmlPath);
 console.log('Registered ' + files.length + ' strategy files in index.html.');

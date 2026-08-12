@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Disabled Access Credit (§44)',
   category: 'Credits & Incentives',
   applyOrder: 84,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

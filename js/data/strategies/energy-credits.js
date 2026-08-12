@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'Business Energy Credits (Solar, EV Charging)',
   category: 'Credits & Incentives',
   applyOrder: 85,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'R&D Tax Credit (§41)',
   category: 'Credits & Incentives',
   applyOrder: 81,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

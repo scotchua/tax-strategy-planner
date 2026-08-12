@@ -11,6 +11,10 @@ TSIQ.strategyModules.push({
   category: 'Retirement',
   applyOrder: 67,
   modeled: true,
+  character: 'deferral', // ET2
+
+  // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
+  conflictsWith: ['simple-ira'],
 
   advisor: {
     summary:
@@ -119,11 +123,17 @@ TSIQ.strategyModules.push({
 
   /**
    * Owner allocation: above-the-line deduction that also reduces QBI
-   * (adjustments + qbiReduction), capped at §415(c) $72,000. Staff gateway
-   * cost: a business expense — routed against scheduleCNet if present (also
-   * saves SE tax) else passthroughK1. Interaction with deferrals/other
-   * employer money inside the same §415(c) limit is the TPA's math — flagged,
-   * not modeled.
+   * (adjustments + qbiReduction), capped at the LESSER of §415(c) $72,000 or
+   * 100% of owner compensation (SF6) — a cross-tested plan cannot allocate
+   * more to a participant than that participant earned. Staff gateway cost:
+   * a business expense — routed against scheduleCNet if present (also saves
+   * SE tax) else passthroughK1. Interaction with deferrals/other employer
+   * money inside the same §415(c) limit is the TPA's math — flagged, not
+   * modeled. The §404(a)(3) deduction-limit warning below is a simplified
+   * single-participant check against the OWNER's own compensation (SE
+   * earnings use ~20% per the §404(a)(8) circularity already established in
+   * solo-401k.js, W-2 owners 25%) — it is not the real aggregate-payroll
+   * test, which needs full staff compensation data the profile doesn't carry.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -138,13 +148,70 @@ TSIQ.strategyModules.push({
       }
       return { profile: p, notes: notes };
     }
-
-    var owner = Math.min(params.ownerAllocation || 0, lim.dcAnnualAdditions);
-    if ((params.ownerAllocation || 0) > lim.dcAnnualAdditions && yearIndex === 0) {
-      notes.push('Owner allocation capped at ' + TSIQ.fmt.usd(lim.dcAnnualAdditions) +
-        ' (§415(c) annual additions, 2026). The cap includes any 401(k) deferrals and ' +
-        'other employer contributions — the TPA computes the real headroom.');
+    if (state.hasSimplePlan) {
+      if (yearIndex === 0) {
+        notes.push('A SIMPLE IRA is also selected in this scenario — an employer generally ' +
+          'cannot maintain both a SIMPLE IRA and a profit-sharing plan in the same year ' +
+          '(Notice 98-4). No benefit modeled here; choose one plan type.');
+      }
+      return { profile: p, notes: notes };
     }
+
+    // SF6: compensation basis for the owner's own allocation — W-2 wages take
+    // priority (S-corp owner), else net SE earnings (§1402(a)(12) 0.9235
+    // factor); a K-1-only owner with no wages has no compensation figure to
+    // test against and gets a refusal note instead of an unlawful allocation.
+    var isW2Owner = p.ownerWages > 0;
+    var isSE = !isW2Owner && p.scheduleCNet > 0;
+    var ownerComp = isW2Owner ? Math.min(p.ownerWages, lim.compensationLimit)
+      : (isSE ? Math.min(p.scheduleCNet * 0.9235, lim.compensationLimit) : 0);
+    if (ownerComp <= 0) {
+      if (yearIndex === 0) {
+        notes.push('No owner W-2 wages or Schedule C earnings found — a cross-tested plan needs a ' +
+          'compensation figure to test the owner\'s allocation against (§415(c)/§404(a)(3)). ' +
+          'K-1 pass-through income alone, with no owner wages or Schedule C earnings, does not ' +
+          'support an allocation here. No benefit modeled.');
+      }
+      return { profile: p, notes: notes };
+    }
+
+    var owner = Math.min(params.ownerAllocation || 0, lim.dcAnnualAdditions, ownerComp);
+    if ((params.ownerAllocation || 0) > Math.min(lim.dcAnnualAdditions, ownerComp) && yearIndex === 0) {
+      if (ownerComp < lim.dcAnnualAdditions) {
+        notes.push('Owner allocation capped at ' + TSIQ.fmt.usd(ownerComp) +
+          ' — §415(c) allows the LESSER of ' + TSIQ.fmt.usd(lim.dcAnnualAdditions) +
+          ' or 100% of owner compensation, and compensation is the binding limit here.');
+      } else {
+        notes.push('Owner allocation capped at ' + TSIQ.fmt.usd(lim.dcAnnualAdditions) +
+          ' (§415(c) annual additions, 2026). The cap includes any 401(k) deferrals and ' +
+          'other employer contributions — the TPA computes the real headroom.');
+      }
+    }
+    var deductLimitPct = isSE ? 0.20 : 0.25;
+    if (owner > deductLimitPct * ownerComp && yearIndex === 0) {
+      notes.push('Warning: the owner allocation alone is ' + TSIQ.fmt.pct(owner / ownerComp) +
+        ' of the owner\'s own compensation, above the simplified ' + TSIQ.fmt.pct(deductLimitPct) +
+        ' single-participant proxy for the §404(a)(3) 25%-of-pay deduction limit' +
+        (isSE ? ' (~20% net of the SE circularity adjustment, §404(a)(8))' : '') +
+        ' — have the TPA run the real test against AGGREGATE eligible payroll (owner + staff), ' +
+        'which is usually far less binding than this single-participant check suggests.');
+    }
+
+    // §415(c) is shared across every DC plan (Solo 401(k), SEP-IRA,
+    // profit-sharing) the same business maintains in the same year.
+    state.dcAnnualAdditionsUsed = state.dcAnnualAdditionsUsed || 0;
+    var headroom = Math.max(0, lim.dcAnnualAdditions - state.dcAnnualAdditionsUsed);
+    if (owner > headroom) {
+      owner = headroom;
+      if (yearIndex === 0) {
+        notes.push('Reduced further because another defined-contribution plan (Solo 401(k) / ' +
+          'SEP-IRA) in this scenario already used ' + TSIQ.fmt.usd(state.dcAnnualAdditionsUsed) +
+          ' of the shared §415(c) limit.');
+      }
+    }
+    state.dcAnnualAdditionsUsed += owner;
+    state.hasQualifiedPlan = true;
+
     var staff = params.staffCost || 0;
 
     p.adjustments = (p.adjustments || 0) + owner;

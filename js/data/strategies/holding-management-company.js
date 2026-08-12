@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 16,
   modeled: false, // advisory-only: value depends on the surrounding structure, not return math
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

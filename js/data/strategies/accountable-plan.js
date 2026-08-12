@@ -9,6 +9,8 @@ TSIQ.strategyModules.push({
   name: 'Accountable Plan',
   category: 'Business Expenses',
   applyOrder: 40,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'HSA Contributions',
   category: 'Health & Fringe',
   applyOrder: 71,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

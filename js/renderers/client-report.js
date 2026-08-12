@@ -9,6 +9,7 @@ TSIQ.render = TSIQ.render || {};
 (function () {
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
+  var usdApprox = function (n) { return TSIQ.fmt.usdApprox(n); }; // ET7 — headline figures only
 
   var REPORT_CSS = '' +
     '*{box-sizing:border-box;margin:0;padding:0}' +
@@ -16,16 +17,16 @@ TSIQ.render = TSIQ.render || {};
     '.page{padding:0.9in 0.85in;page-break-after:always}' +
     '.page:last-child{page-break-after:auto}' +
     '.cover{display:flex;flex-direction:column;justify-content:center;min-height:9in;text-align:center}' +
-    '.cover .firm{font-size:13pt;letter-spacing:3px;text-transform:uppercase;color:#8a6d3b;margin-bottom:24px}' +
+    '.cover .firm{font-size:13pt;letter-spacing:3px;text-transform:uppercase;color:%ACCENT_TEXT%;margin-bottom:24px}' +
     '.cover h1{font-size:30pt;font-weight:normal;margin-bottom:12px}' +
     '.cover .client{font-size:17pt;color:#445;margin-bottom:40px}' +
     '.cover .date{color:#667;font-size:11pt}' +
-    'h2{font-size:18pt;font-weight:normal;border-bottom:2px solid #8a6d3b;padding-bottom:6px;margin-bottom:16px}' +
+    'h2{font-size:18pt;font-weight:normal;border-bottom:2px solid ' + TSIQ.DEFAULT_BRAND_COLOR + ';padding-bottom:6px;margin-bottom:16px}' +
     'h3{font-size:13pt;margin:16px 0 8px;color:#2c3e50}' +
     'p{margin-bottom:10px}' +
     'ul{margin:6px 0 12px 22px}li{margin-bottom:5px}' +
-    '.headline{font-size:15pt;color:#8a6d3b;font-style:italic;margin-bottom:12px}' +
-    '.analogy{background:#f7f4ee;border-left:4px solid #8a6d3b;padding:12px 16px;margin:14px 0;font-style:italic}' +
+    '.headline{font-size:15pt;color:%ACCENT_TEXT%;font-style:italic;margin-bottom:12px}' +
+    '.analogy{background:#f7f4ee;border-left:4px solid ' + TSIQ.DEFAULT_BRAND_COLOR + ';padding:12px 16px;margin:14px 0;font-style:italic}' +
     'table{width:100%;border-collapse:collapse;margin:12px 0;font-size:10.5pt}' +
     'th,td{padding:7px 10px;border-bottom:1px solid #d8d8d8;text-align:right}' +
     'th:first-child,td:first-child{text-align:left}' +
@@ -37,21 +38,48 @@ TSIQ.render = TSIQ.render || {};
     '.big-number .amount{font-size:34pt;color:#1e7e34}' +
     '.big-number .label{font-family:Arial,sans-serif;font-size:10pt;text-transform:uppercase;letter-spacing:1.5px;color:#667}' +
     '.disclaimer{font-size:9pt;color:#778;border-top:1px solid #ccc;padding-top:10px;margin-top:26px}' +
-    '@media print{.page{padding:0.25in 0.15in}}';
-
-  function scenarioLabel(sc) { return sc.label; }
+    // @page sets the sheet margin explicitly so the deliverable doesn't
+    // depend on whatever margin setting the browser's print dialog happens
+    // to have (commonly "None" when saving to PDF, which previously left
+    // only 0.15in of margin); table/tr avoid breaking mid-row across pages.
+    '@page{size:letter;margin:0.75in}' +
+    '@media print{.page{padding:0}' +
+    'table{page-break-inside:auto;break-inside:auto}' +
+    'tr{page-break-inside:avoid;break-inside:avoid}}';
 
   // Brand-aware print CSS + logo block (Brand Settings flow through here).
+  // Sink-side validation/escaping — defense-in-depth on top of the
+  // brand-settings load/save validation in app.js (sanitizeBrand).
+  function safeBrandColor() {
+    var color = TSIQ.brand && TSIQ.brand.color;
+    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : TSIQ.DEFAULT_BRAND_COLOR;
+  }
+  // WCAG relative luminance -> darken a too-light brand color until it
+  // reads at roughly 4.5:1 contrast as TEXT on this report's white page.
+  // Mirrors app.js's readableAccentText(); duplicated because this renderer
+  // runs in its own popup window with no shared module to import from.
+  function readableAccentText(hex) {
+    function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    function luminance(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b); }
+    var r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255,
+      b = parseInt(hex.slice(5, 7), 16) / 255;
+    var THRESHOLD = 0.18;
+    for (var i = 0; i < 12 && luminance(r, g, b) > THRESHOLD; i++) { r *= 0.88; g *= 0.88; b *= 0.88; }
+    function toHex(c) {
+      var h = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
+      return h.length < 2 ? '0' + h : h;
+    }
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  }
   function brandCss() {
-    var color = (TSIQ.brand && TSIQ.brand.color) || '#8a6d3b';
-    return REPORT_CSS.split('#8a6d3b').join(color);
+    var color = safeBrandColor();
+    return REPORT_CSS.split(TSIQ.DEFAULT_BRAND_COLOR).join(color).split('%ACCENT_TEXT%').join(readableAccentText(color));
   }
   function brandLogoBlock(marginBottom) {
     var logo = TSIQ.brand && TSIQ.brand.logo;
-    return logo
-      ? '<img src="' + logo + '" style="max-height:64px;max-width:220px;display:block;margin:0 auto ' +
-        (marginBottom || '18px') + '" alt="">'
-      : '';
+    if (typeof logo !== 'string' || !/^data:image\/(png|jpe?g|gif|webp);base64,/.test(logo)) return '';
+    return '<img src="' + esc(logo) + '" style="max-height:64px;max-width:220px;display:block;margin:0 auto ' +
+      (marginBottom || '18px') + '" alt="">';
   }
 
   function comparisonTable(baseline, scenarios) {
@@ -59,8 +87,11 @@ TSIQ.render = TSIQ.render || {};
       .concat(scenarios.map(function (sc) { return { label: sc.label, r: sc.result.years[0] }; }));
     var rows = [
       ['Federal income tax', 'incomeTax'],
-      ['Self-employment / payroll tax', function (r) { return r.seTax + r.ownerPayrollTax + r.addlMedicare; }],
+      ['Self-employment / payroll tax', function (r) {
+        return r.seTax + r.ownerPayrollTax + r.addlMedicare + r.otherTaxes - r.excessSSCredit;
+      }],
       ['Net investment income tax', 'niit'],
+      ['Business entity-level tax', 'corpTaxPaid'],
       ['State tax (incl. entity-level)', 'totalState']
     ];
     var html = '<table><thead><tr><th>First-Year Tax (2026)</th>' +
@@ -115,6 +146,70 @@ TSIQ.render = TSIQ.render || {};
     return html + '</tr></tbody></table>';
   }
 
+  function formatParamValue(input, value) {
+    if (input.type === 'currency') return usd(value);
+    if (input.type === 'percent') return value + '%';
+    if (input.type === 'select' && input.options) {
+      var opt = input.options.filter(function (o) { return o.value === value; })[0];
+      return opt ? opt.label : value;
+    }
+    return value;
+  }
+
+  // Reproduces every number in this report from its own inputs — the client's
+  // data as entered, plus the exact parameters behind each recommended
+  // strategy in the plan (workpaper defensibility; nothing here is derived).
+  function assumptionsPage(data, best) {
+    var p = data.profile;
+    var profileRows = [
+      ['Filing status', TSIQ.FILING_STATUS_LABELS[p.filingStatus] || p.filingStatus],
+      ['W-2 wages', usd(p.wages)],
+      ['Schedule C net profit', usd(p.scheduleCNet)],
+      ['K-1 ordinary income (pass-through)', usd(p.passthroughK1)],
+      ['Specified service trade or business (SSTB)', p.isSSTB ? 'Yes' : 'No'],
+      ['Rental net income / (loss)', usd(p.rentalNet)],
+      ['Real estate professional / non-passive', p.reNonPassive ? 'Yes' : 'No'],
+      ['Long-term capital gains', usd(p.ltcg)],
+      ['Qualified dividends', usd(p.qualDiv)],
+      ['Interest income', usd(p.interest)],
+      ['Other income', usd(p.otherIncome)],
+      ['Property tax', usd(p.propertyTax)],
+      ['Mortgage interest', usd(p.mortgageInterest)],
+      ['Charitable contributions', usd(p.charitable)],
+      ['Other itemized deductions', usd(p.otherItemized)],
+      ['Qualifying children (Child Tax Credit)', p.kidsCTC],
+      ['Other dependents', p.otherDeps],
+      ['Filer/spouse age 65+ (count)', p.age65Count],
+      ['State effective tax rate', TSIQ.fmt.pct(p.stateRate)],
+      ['Assumed annual income growth', TSIQ.fmt.pct(data.growthRate)],
+      ['Projection horizon', data.years + ' years']
+    ];
+    if (p.priorYearTax) profileRows.push(['Prior-year total tax (safe-harbor basis)', usd(p.priorYearTax)]);
+    if (p.priorYearAGI) profileRows.push(['Prior-year AGI (safe-harbor basis)', usd(p.priorYearAGI)]);
+
+    var stratRows = best.selections.map(function (sel) {
+      var paramStrs = (sel.strategy.inputs || []).map(function (inp) {
+        if (sel.params[inp.key] === undefined) return null;
+        return esc(inp.label) + ': ' + esc(String(formatParamValue(inp, sel.params[inp.key])));
+      }).filter(function (s) { return s !== null; });
+      return '<tr><td>' + esc(sel.strategy.name) + '</td><td>' + (paramStrs.join('; ') || '&mdash;') + '</td></tr>';
+    }).join('');
+
+    return '<div class="page">' +
+      '<h2>Data &amp; Assumptions</h2>' +
+      '<p>For your records and ours — the figures behind every number in this report, so it can always ' +
+      'be reproduced or checked against the numbers on file.</p>' +
+      '<h3>Client data as entered</h3><table><tbody>' +
+      profileRows.map(function (r) {
+        return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(String(r[1])) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      (best.selections.length
+        ? '<h3>Strategy parameters (' + esc(best.label) + ')</h3><table><tbody>' + stratRows + '</tbody></table>'
+        : '') +
+      '<div class="disclaimer">Tax Strategy Planner v' + TSIQ.APP_VERSION + '</div>' +
+      '</div>';
+  }
+
   function strategyPage(strategy) {
     var c = strategy.client;
     return '<div class="page">' +
@@ -143,7 +238,7 @@ TSIQ.render = TSIQ.render || {};
       '<div class="page">' +
       '<div style="text-align:center;margin-bottom:22px">' + brandLogoBlock('10px') +
       '<div style="font-size:11pt;letter-spacing:3px;text-transform:uppercase;color:' +
-      ((TSIQ.brand && TSIQ.brand.color) || '#8a6d3b') + '">' +
+      readableAccentText(safeBrandColor()) + '">' +
       esc(firmName) + '</div></div>' +
       strategyPage(strategy).replace('<div class="page">', '<div>') +
       '<div class="disclaimer">This overview is educational and describes a strategy in general terms. ' +
@@ -152,30 +247,22 @@ TSIQ.render = TSIQ.render || {};
       'documentation requirements with you.</div>' +
       '</div></body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(function () { w.print(); }, 400);
+    TSIQ.render.openWindow(html, { print: true });
   };
 
   /**
    * data: { clientName, firmName, baseline, scenarios: [{label, result, strategies:[strategyObj]}], years }
    */
   TSIQ.render.clientReport = function (data) {
-    var best = data.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, data.scenarios[0]);
+    var best = TSIQ.bestScenario(data.scenarios, data.forcedWinnerLabel);
     var firstYearSavings = data.baseline.years[0].totalBurden - best.result.years[0].totalBurden;
     var cumSavings = data.baseline.totals.totalBurden - best.result.totals.totalBurden;
 
-    var uniqueStrategies = [];
-    data.scenarios.forEach(function (sc) {
-      sc.strategies.forEach(function (s) {
-        if (uniqueStrategies.indexOf(s) === -1) uniqueStrategies.push(s);
-      });
-    });
+    // Strategy pages must match the BEST scenario only — the headline dollar
+    // figures above come from `best`, so including strategies from OTHER
+    // scenarios here would print recommendation pages for moves that aren't
+    // in the plan the numbers describe.
+    var uniqueStrategies = best.strategies.slice();
 
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<title>Tax Strategy Plan — ' + esc(data.clientName) + '</title>' +
@@ -191,9 +278,9 @@ TSIQ.render = TSIQ.render || {};
 
       '<div class="page">' +
       '<h2>The Bottom Line</h2>' +
-      '<div class="big-number"><div class="amount">' + usd(firstYearSavings) + '</div>' +
+      '<div class="big-number"><div class="amount">' + usdApprox(firstYearSavings) + '</div>' +
       '<div class="label">Estimated first-year tax savings</div></div>' +
-      '<div class="big-number"><div class="amount">' + usd(cumSavings) + '</div>' +
+      '<div class="big-number"><div class="amount">' + usdApprox(cumSavings) + '</div>' +
       '<div class="label">Estimated savings over ' + data.years + ' years</div></div>' +
       '<p>Without a plan, taxes are simply what happens to you. With a plan, they become a number we manage. ' +
       'The pages that follow show where you stand today, the specific strategies we recommend, and exactly ' +
@@ -212,15 +299,16 @@ TSIQ.render = TSIQ.render || {};
       'planning illustrations, not a guarantee of results or a substitute for the advice engagement. State tax is ' +
       'modeled at a flat effective rate. Strategies require proper implementation and documentation to deliver ' +
       'the benefits shown. ' + esc(data.firmName) + ' will confirm final figures on your filed returns.</div>' +
+      (TSIQ.isLawStale && TSIQ.isLawStale() ? '<div class="disclaimer" style="color:#a3372b;font-weight:bold">' +
+        'This plan was modeled using ' + TSIQ.TABLES_2026.taxYear + ' tax law, which is no longer the ' +
+        'current tax year — ' + esc(data.firmName) + ' will re-run this plan against current-year figures ' +
+        'before you rely on it.</div>' : '') +
       '</div>' +
+
+      assumptionsPage(data, best) +
 
       '</body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(function () { w.print(); }, 400);
+    TSIQ.render.openWindow(html, { print: true });
   };
 })();

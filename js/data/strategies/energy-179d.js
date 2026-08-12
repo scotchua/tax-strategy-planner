@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: '§179D Energy-Efficient Commercial Building Deduction',
   category: 'Real Estate & Cost Recovery',
   applyOrder: 58,
+  modeled: true,
+  character: 'timing', // ET2
 
   advisor: {
     summary:
@@ -157,6 +159,10 @@ TSIQ.strategyModules.push({
         return { profile: p, notes: notes };
       }
       p[route] = (p[route] || 0) - (amt - sl);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§1250
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (amt - sl);
       notes.push(TSIQ.fmt.usd(amt) + ' §179D deduction (certified energy savings; ' +
         'modeled net of the ' + TSIQ.fmt.usd(sl) + ' straight-line slice the baseline ' +
         'would have taken over 39 years). DEADLINE: §179D is TERMINATED for property ' +

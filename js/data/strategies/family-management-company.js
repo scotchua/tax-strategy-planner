@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Payroll & Family',
   applyOrder: 33,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

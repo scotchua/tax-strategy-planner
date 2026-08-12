@@ -20,14 +20,23 @@ window.TSIQ = window.TSIQ || {};
   // Anchor rows: first row whose text matches `re` AND carries a number.
   // `two: true` captures the two right-most numbers (e.g., qualified +
   // ordinary dividends share one row on the 1040).
+  // pairedAB: this line has a gross ("a", middle column) and taxable ("b",
+  // right column) amount side by side. When only ONE number survives the
+  // row-band filter, x-position (vs. refX, calibrated from AGI's known
+  // single right-column line) determines whether it's the taxable "b"
+  // value or an unaccompanied gross "a" value with a blank/zero "b".
   var ANCHORS = [
     { key: 'wages1z',      re: /Add lines 1a through 1h/i },
     { key: 'wages1a',      re: /from Form\(s\) W-2, box 1/i },
-    { key: 'interest',     re: /Tax-exempt interest.*Taxable interest|Taxable interest/i },
+    { key: 'interest',     re: /Tax-exempt interest.*Taxable interest|Taxable interest/i, pairedAB: true },
     { key: 'dividends',    re: /Qualified dividends/i, two: true },
-    { key: 'iraTaxable',   re: /IRA distributions/i },
-    { key: 'pension',      re: /Pensions and annuities/i },
-    { key: 'socialSec',    re: /Social security benefits/i },
+    { key: 'iraTaxable',   re: /IRA distributions/i, pairedAB: true },
+    { key: 'pension',      re: /Pensions and annuities/i, pairedAB: true },
+    // two: true also captures the gross ("a") benefit amount into v2 — the
+    // engine computes §86 taxability itself from the gross figure rather
+    // than trusting the return's already-computed taxable "b" amount as an
+    // opaque income lump (see fields.ssBenefitsGross below).
+    { key: 'socialSec',    re: /Social security benefits/i, pairedAB: true, two: true },
     { key: 'capGain',      re: /Capital gain or \(loss\)\. Attach Schedule D/i },
     { key: 'totalIncome',  re: /This is your total income/i },
     { key: 'agi',          re: /This is your adjusted gross income/i },
@@ -59,8 +68,11 @@ window.TSIQ = window.TSIQ || {};
     return neg ? -n : n;
   }
 
+  // Accepts an optional leading minus — some software prints losses as
+  // "-12,345" rather than "(12,345)". parseNumber() already handles the
+  // minus sign correctly (its char-strip only removes commas/$/parens).
   function isNumericItem(s) {
-    return /^\(?\$?\s?[0-9][0-9,]*\.?[0-9]{0,2}\)?$/.test(s.trim());
+    return /^\(?-?\$?\s?[0-9][0-9,]*\.?[0-9]{0,2}\)?$/.test(s.trim());
   }
 
   /**
@@ -71,6 +83,18 @@ window.TSIQ = window.TSIQ || {};
     var lib = (typeof pdfjsLib !== 'undefined') ? pdfjsLib : window.pdfjsLib;
     if (!lib) return Promise.reject(new Error('pdf.js not loaded'));
 
+    // SECURITY-LOAD-BEARING: the vendored pdf.js (js/vendor/, v3.11.174) is
+    // within the CVE-2024-4367 vulnerable range (arbitrary JS execution via a
+    // crafted PDF's FontMatrix). isEvalSupported:false is the mitigation —
+    // do not remove it in a refactor. Upgrading to a fixed build (>= 4.2.67)
+    // is NOT a drop-in swap: pdf.js dropped classic-script/UMD builds at that
+    // version in favor of ES-module-only builds, and ES modules fail to load
+    // under file:// in Chromium (a CORS error) — which is this app's primary,
+    // documented launch mode (see "Add Desktop Shortcut.cmd"). An upgrade
+    // needs either a build/bundling step (contrary to this project's no-build
+    // design) or dropping file:// support, and real PDF fixtures to confirm
+    // getTextContent()'s output shape is unchanged — tracked as a deferred,
+    // deliberate decision, not an oversight.
     return lib.getDocument({ data: data, isEvalSupported: false, useWorkerFetch: false })
       .promise.then(function (doc) {
         var pagePromises = [];
@@ -129,6 +153,20 @@ window.TSIQ = window.TSIQ || {};
           });
         });
 
+        // Calibrate the right ("b"/single-value) column's x-position from
+        // AGI — a known single-column line — so pairedAB anchors can tell,
+        // when only ONE number survives, whether it's the taxable "b" value
+        // or an unaccompanied gross "a" (middle-column) value.
+        var refX = null;
+        for (var rp = 0; rp < pageData.length && refX === null; rp++) {
+          var rpd = pageData[rp];
+          for (var rr = 0; rr < rpd.rows.length && refX === null; rr++) {
+            if (!/This is your adjusted gross income/i.test(rpd.rows[rr].text)) continue;
+            var refBand = rpd.nums.filter(function (n) { return Math.abs(n.y - rpd.rows[rr].y) <= 4 && n.x >= 200; });
+            if (refBand.length) refX = refBand[refBand.length - 1].x;
+          }
+        }
+
         // Resolve each anchor: FIRST label row in page order wins (federal
         // forms precede state forms and worksheets in a return package).
         // Value = right-most number within 4pt of the label's y, after
@@ -138,7 +176,19 @@ window.TSIQ = window.TSIQ || {};
         // never a value. Filter: drop numbers at x<200 outright, and drop
         // small integers in the reference band whose value also appeared in
         // the far-left column of the same row (the echo).
+        //
+        // KNOWN LIMITATION (not fixed here): the x<200/x<520 constants are
+        // absolute PDF-user-space coordinates that assume the standard
+        // letter-size page transform every supported software package (Drake,
+        // Lacerte, UltraTax, ProSeries, TurboTax) happens to share. A package
+        // that scales or offsets the page differently would need these
+        // calibrated per-page from page.getViewport() and a known label's x
+        // instead. Left as absolute constants because there are no real
+        // sample PDFs in this repo to verify a per-page-relative rewrite
+        // against — guessing at the replacement risked silently breaking
+        // parsing that works today for a case that isn't confirmed to exist.
         var raw = {};
+        var pairedABWarnings = [];
         ANCHORS.forEach(function (a) {
           for (var p = 0; p < pageData.length && !raw[a.key]; p++) {
             var pd = pageData[p];
@@ -155,11 +205,19 @@ window.TSIQ = window.TSIQ || {};
                     n.v === Math.round(n.v) && leftVals[n.v]) return false; // echoed line number
                 return true;
               }).sort(function (m, n) { return m.x - n.x; });
-              raw[a.key] = {
-                found: true, page: pd.page,
-                v: near.length ? near[near.length - 1].v : null,
-                v2: (a.two && near.length >= 2) ? near[near.length - 2].v : undefined
-              };
+
+              var v = near.length ? near[near.length - 1].v : null;
+              var v2 = (a.two && near.length >= 2) ? near[near.length - 2].v : undefined;
+              if (a.pairedAB && near.length === 1 && refX !== null && (refX - near[0].x) > 15) {
+                // The lone surviving number sits in the middle ("a"/gross)
+                // column, not the far-right ("b"/taxable) column — the
+                // taxable amount is blank (nontaxable rollover, SS below the
+                // taxability floor, tax-exempt-only interest, etc.).
+                pairedABWarnings.push(a.key + ':' + near[0].v);
+                v2 = near[0].v; // the lone survivor IS the gross ("a") value
+                v = 0;
+              }
+              raw[a.key] = { found: true, page: pd.page, v: v, v2: v2 };
               break;
             }
           }
@@ -170,6 +228,23 @@ window.TSIQ = window.TSIQ || {};
         // ---- Map raw line values to app profile fields ----
         var warnings = [];
         var fields = {};
+
+        var PAIRED_AB_LABELS = {
+          interest: 'Taxable interest', iraTaxable: 'IRA distributions',
+          pension: 'Pensions and annuities', socialSec: 'Social Security benefits'
+        };
+        pairedABWarnings.forEach(function (w) {
+          var parts = w.split(':'), key = parts[0], grossAmt = parts[1];
+          // Social Security is handled separately below (the gross amount
+          // drives the engine's own §86 computation, so "imported as $0
+          // taxable" would be misleading here — a real, possibly nonzero,
+          // taxable amount gets computed from ssBenefitsGross).
+          if (key === 'socialSec') return;
+          warnings.push('Found a gross ' + (PAIRED_AB_LABELS[key] || key) + ' amount of ' +
+            TSIQ.fmt.usd(grossAmt) + ' with no taxable amount printed alongside it — imported ' +
+            'as $0 taxable. Verify against the return (a fully nontaxable rollover, exempt ' +
+            'interest, or a blank line would look like this).');
+        });
 
         fields.wages = val('wages1z') !== null ? val('wages1z') : (val('wages1a') || 0);
 
@@ -194,7 +269,12 @@ window.TSIQ = window.TSIQ || {};
         var k1 = found('schEK1') ? (val('schEK1') || 0) : null;
         var estate = found('schEEstate') ? (val('schEEstate') || 0) : 0;
         if (schEFound) {
-          if (rental !== null && rental !== 0) fields.rentalNet = rental;
+          if (rental !== null && rental !== 0) {
+            fields.rentalNet = rental;
+            warnings.push('Schedule E line 26 (' + TSIQ.fmt.usd(rental) + ') mapped entirely to ' +
+              'Rental — this line also includes royalties on some returns; confirm the split if ' +
+              'this client has royalty income.');
+          }
           if (k1 !== null && k1 !== 0) {
             fields.passthroughK1 = k1;
             warnings.push(TSIQ.fmt.usd(k1) + ' of partnership/S-corp income found on Schedule E — ' +
@@ -241,13 +321,28 @@ window.TSIQ = window.TSIQ || {};
           }
         }
 
-        // Retirement/SS taxable amounts → other income.
-        var retire = (val('iraTaxable') || 0) + (val('pension') || 0) + (val('socialSec') || 0);
+        // IRA/pension taxable amounts → other income (unlike Social Security
+        // below, the app has no separate mechanism for these — the return's
+        // own already-computed taxable amount is used as-is).
+        var retire = (val('iraTaxable') || 0) + (val('pension') || 0);
         if (retire) {
           fields.otherIncome = (fields.otherIncome || 0) + retire;
-          warnings.push(TSIQ.fmt.usd(retire) + ' of IRA/pension/Social Security taxable income ' +
-            'was mapped to Other Income (note: the engine will not apply SS-taxability ' +
-            'phase-ins to it — review if Social Security is a large share).');
+          warnings.push(TSIQ.fmt.usd(retire) + ' of IRA/pension taxable income was mapped to ' +
+            'Other Income.');
+        }
+
+        // Social Security: import the GROSS benefit amount into its own
+        // field — the engine computes §86 taxability itself (provisional
+        // income against the never-indexed statutory thresholds) rather
+        // than trusting the return's already-computed taxable amount as an
+        // opaque, frozen number that can't respond when a strategy changes
+        // the client's other income.
+        var ssGross = raw.socialSec ? raw.socialSec.v2 : undefined;
+        if (ssGross !== undefined && ssGross !== null && ssGross !== 0) {
+          fields.ssBenefitsGross = ssGross;
+          warnings.push(TSIQ.fmt.usd(ssGross) + ' of gross Social Security benefits found — ' +
+            'imported for the engine to compute taxability itself rather than trusting the ' +
+            'return\'s already-computed taxable amount.');
         }
 
         // Itemized detail (present only when Schedule A exists).
@@ -255,6 +350,14 @@ window.TSIQ = window.TSIQ || {};
         if (val('mortgageInterest') !== null) fields.mortgageInterest = val('mortgageInterest');
         var charity = (val('charityCash') || 0) + (val('charityOther') || 0);
         if (charity) fields.charitable = charity;
+        // Not mapped to any profile field (state tax is modeled as a flat
+        // effective rate, not itemized detail) — surfaced only so the
+        // advisor can sanity-check the entered state rate against it.
+        if (val('saltIncomeTax') !== null && val('saltIncomeTax') !== 0) {
+          warnings.push('Schedule A shows ' + TSIQ.fmt.usd(val('saltIncomeTax')) +
+            ' of state/local income tax paid — confirm the State effective rate field ' +
+            'produces a comparable figure for this client.');
+        }
 
         // Payments are deliberately NOT parsed: they print in a detached
         // block on many layouts (unreliable), and prior-year withholding/
@@ -290,6 +393,21 @@ window.TSIQ = window.TSIQ || {};
           warnings.push('This is a ' + formYear + ' return — update the figures to the client\'s ' +
             'current run-rate before presenting a ' + TSIQ.TABLES_2026.taxYear + ' plan.');
         }
+
+        // 2025+ returns can carry new OBBBA below-the-line deductions (no tax
+        // on tips/overtime, the senior deduction, car loan interest) reported
+        // via Schedule 1-A — not parsed into any field here, so flag its
+        // presence rather than leaving an unexplained gap in the AGI/taxable-
+        // income tie-out.
+        var hasSchedule1A = pageData.some(function (pd) {
+          return pd.rows.some(function (row) { return /Schedule\s*1-A/i.test(row.text); });
+        });
+        if (hasSchedule1A) {
+          warnings.push('This return includes Schedule 1-A (tips/overtime/senior/car-loan-' +
+            'interest deductions) — these amounts are not imported into any field, which can ' +
+            'explain a gap between the parsed figures and the return\'s own AGI/taxable income.');
+        }
+
         warnings.push('Dependents are not parsed from the PDF — enter CTC-qualifying children ' +
           'and other dependents manually.');
 

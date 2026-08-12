@@ -10,6 +10,12 @@ TSIQ.strategyModules.push({
   name: 'S-Corp 2% Shareholder Health Insurance',
   category: 'Payroll & Family',
   applyOrder: 37,
+  modeled: true,
+  character: 'permanent', // ET2
+
+  // Non-blocking hint only — an existing S-corp owner (ownerWages already
+  // entered) doesn't need the election paired in the SAME scenario.
+  requiresOneOf: ['s-corp-election'],
 
   advisor: {
     summary:
@@ -68,7 +74,7 @@ TSIQ.strategyModules.push({
       'Spouse takes a job with subsidized coverage mid-year: every month of mere ELIGIBILITY disallows the deduction, even if the family never enrolls.',
       'W-2 wages below the premium level cap the deduction — coordinate with reasonable-compensation planning.',
       'Payroll providers that route the inclusion through FICA boxes create needless payroll tax; the setup must be checked the first year.',
-      'IRS FAQ guidance treats the §162(l) deduction as reducing QBI for the S corp owner — a modest §199A offset this model does not compute; flag when QBI is material.'
+      'IRS FAQ guidance treats the §162(l) deduction as reducing QBI for the S corp owner — this model applies that §199A offset.'
     ],
     bestFit: [
       'S-corp owners currently paying health premiums personally with after-tax dollars.',
@@ -125,9 +131,10 @@ TSIQ.strategyModules.push({
    * the net modeled effect vs. paying premiums personally is the §162(l)
    * above-the-line deduction: adjustments += premiums. No FICA cost is added
    * (the inclusion is FICA-exempt per Announcement 92-16). The §162(l)
-   * earned-income limit is enforced by capping at ownerWages. Simplification:
-   * the IRS position that this deduction also reduces §199A QBI is not
-   * modeled (noted for the advisor).
+   * earned-income limit is enforced by capping at ownerWages. The entity's
+   * premium payment is part of W-2 comp deducted against K-1 ordinary
+   * income, so it also reduces §199A QBI — modeled via qbiReduction,
+   * matching the sibling SE Health Insurance strategy's treatment.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -146,6 +153,7 @@ TSIQ.strategyModules.push({
     var premiums = params.annualPremiums || 0;
     var deduction = Math.min(premiums, p.ownerWages);
     p.adjustments = (p.adjustments || 0) + deduction;
+    p.qbiReduction = (p.qbiReduction || 0) + deduction;
 
     if (yearIndex === 0) {
       notes.push(TSIQ.fmt.usd(deduction) + ' of health premiums deducted above the line ' +

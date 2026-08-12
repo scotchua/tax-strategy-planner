@@ -5,10 +5,7 @@
 window.TSIQ = window.TSIQ || {};
 TSIQ.render = TSIQ.render || {};
 
-TSIQ.esc = function (s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-};
+// TSIQ.esc lives in js/data/tax-tables-2026.js (loaded before this file).
 
 (function () {
   var esc = TSIQ.esc;

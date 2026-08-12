@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Business Expenses',
   applyOrder: 45,
   modeled: true,
+  character: 'timing', // ET2
 
   advisor: {
     summary:
@@ -116,7 +117,7 @@ TSIQ.strategyModules.push({
   },
 
   inputs: [
-    { key: 'bunchedContribution', label: 'Bunched DAF contribution (bunch years)', type: 'currency', default: 30000 },
+    { key: 'bunchedContribution', label: 'Bunched DAF contribution (bunch years)', type: 'currency', default: 30000, solveable: true },
     { key: 'bunchEveryNYears', label: 'Bunch every N years', type: 'number', default: 3 }
   ],
 
@@ -133,9 +134,16 @@ TSIQ.strategyModules.push({
    * REPLACES baseline charitable giving with the bunched pattern: in bunch
    * years (yearIndex % N === 0) charitable = bunchedContribution; in off
    * years charitable = 0 (the baseline annual gift is redirected through the
-   * DAF cycle instead). The engine's standard-vs-itemized comparison then
-   * produces the benefit. AGI percentage limits and the OBBBA 0.5%-of-AGI
-   * floor are NOT modeled by the engine — flagged in notes.
+   * DAF cycle instead). The engine's standard-vs-itemized comparison (now
+   * including the OBBBA 0.5%-of-AGI charitable floor and the §68 2/37
+   * itemized limitation) then produces the benefit. AGI percentage limits
+   * (60% cash / 30% appreciated stock) are still not modeled — flagged below.
+   * NOTE: the baseline's charitable field grows with the scenario's income
+   * growth rate each year while the bunched amount here is static (a per-
+   * cycle nominal figure the advisor enters), so if the bunched amount is
+   * less than N years of (growing) baseline giving, part of the shown
+   * savings reflects giving LESS overall, not giving more efficiently —
+   * flagged explicitly below so the advisor can separate the two effects.
    */
   apply: function (profile, params, yearIndex, state) {
     var p = Object.assign({}, profile);
@@ -152,12 +160,14 @@ TSIQ.strategyModules.push({
         '/yr of giving: ' + TSIQ.fmt.usd(bunched) + ' to the DAF every ' + n +
         ' year(s), $0 itemized in off years (standard deduction taken instead). ' +
         'Charities still receive grants annually from the DAF.');
-      notes.push('Not modeled: AGI percentage limits (60% cash / 30% appreciated stock) ' +
-        'and the OBBBA 0.5%-of-AGI charitable floor effective 2026 — verify headroom ' +
-        'and expect a small haircut in itemizing years.');
+      notes.push('Not modeled: AGI percentage limits (60% cash / 30% appreciated stock) — ' +
+        'verify headroom for the bunched amount in a single year.');
       if (bunched < baselineGiving * n) {
-        notes.push('Heads up: the bunched amount is less than ' + n + ' years of baseline ' +
-          'giving (' + TSIQ.fmt.usd(baselineGiving * n) + ') — confirm that is intended.');
+        notes.push('This bunched amount (' + TSIQ.fmt.usd(bunched) + ') is LESS than ' + n +
+          ' years of baseline giving (' + TSIQ.fmt.usd(baselineGiving * n) +
+          ', before accounting for income growth) — part of the projected savings reflects ' +
+          'giving less overall, not just bunching more efficiently. Set the bunched amount ' +
+          'to roughly N years of intended giving to isolate the pure tax-timing benefit.');
       }
     }
     return { profile: p, notes: notes };

@@ -16,6 +16,19 @@ TSIQ.render = TSIQ.render || {};
 (function () {
   var esc = function (s) { return TSIQ.esc(s); };
   var usd = function (n) { return TSIQ.fmt.usd(n); };
+  var usdApprox = function (n) { return TSIQ.fmt.usdApprox(n); }; // ET7 — headline figures only
+
+  // Sink-side validation/escaping for brand fields — defense-in-depth on
+  // top of the brand-settings load/save validation in app.js (sanitizeBrand).
+  function safeBrandColor(fallback) {
+    var color = TSIQ.brand && TSIQ.brand.color;
+    return (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : fallback;
+  }
+  function safeBrandLogoImg(style) {
+    var logo = TSIQ.brand && TSIQ.brand.logo;
+    if (typeof logo !== 'string' || !/^data:image\/(png|jpe?g|gif|webp);base64,/.test(logo)) return '';
+    return '<img src="' + esc(logo) + '" style="' + style + '" alt="">';
+  }
 
   /* ------------------- minimal dark shell (pitch deck) ------------------- */
   var DECK_CSS = '' +
@@ -44,6 +57,7 @@ TSIQ.render = TSIQ.render || {};
     '.nav button{background:#1e2a38;color:#eef2f7;border:1px solid #3a4a5c;border-radius:6px;padding:10px 18px;font-size:16px;cursor:pointer}' +
     '.nav button:hover{background:#2c3a4a}' +
     '.counter{color:#7a8a9c;font-size:14px;margin-right:8px}' +
+    '.version-stamp{color:#4a5a6c;font-size:11px;margin-right:8px}' +
     '.progress{position:fixed;top:0;left:0;height:3px;background:var(--deck-accent);transition:width .3s}';
 
   var DECK_JS = '' +
@@ -60,33 +74,36 @@ TSIQ.render = TSIQ.render || {};
     'show(0);';
 
   TSIQ.render.deckLogo = function () {
-    var logo = TSIQ.brand && TSIQ.brand.logo;
-    return logo
-      ? '<img src="' + logo + '" style="max-height:9vh;max-width:30vw;margin-bottom:3vh" alt="">'
-      : '';
+    return safeBrandLogoImg('max-height:9vh;max-width:30vw;margin-bottom:3vh');
   };
 
   TSIQ.render.openDeck = function (title, slidesHtml) {
-    var brandColor = (TSIQ.brand && TSIQ.brand.color) || '#8a6d3b';
+    var brandColor = safeBrandColor(TSIQ.DEFAULT_BRAND_COLOR);
     var accentVar = ':root{--deck-accent:color-mix(in srgb, ' + brandColor + ' 55%, #f5e9c9)}';
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<title>' + esc(title) + '</title>' +
       '<style>' + accentVar + DECK_CSS + '</style></head><body>' +
       '<div class="progress"></div>' + slidesHtml +
-      '<div class="nav"><span class="counter"></span>' +
+      '<div class="nav"><span class="counter"></span><span class="version-stamp">v' + esc(TSIQ.APP_VERSION) + '</span>' +
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + DECK_JS + '<\/script></body></html>';
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
+    TSIQ.render.openWindow(html);
   };
 
   /* ================= firm-style 1920×1080 presentation deck =============== */
 
   // Design tokens per the firm's deck design system. The gold accent follows
   // Brand Settings; the app's generic default maps to the signature gold.
+  // KNOWN GAP: --gold/--gold-300 are used as TEXT both on dark (.s-navy)
+  // slides, where a light custom brand color reads fine, and on light
+  // (.s-white/.s-cream) slides, where the same light color would be
+  // illegible — the contrast guard applied to the live app (app.js
+  // readableAccentText) and the client PDF (client-report.js) was not
+  // extended here: doing so safely needs splitting --gold into on-dark vs.
+  // on-light variants across every usage in this ~450-line template, which
+  // risks making text invisible on the WRONG background if a usage is
+  // misclassified — left for a follow-up with visual regression testing
+  // across brand colors rather than a rushed pass here.
   function stageCss(gold) {
     return '' +
     ':root{--navy:#1B2B3A;--navy-700:#16242F;--navy-900:#0F1A24;--cream:#F5F0E8;' +
@@ -131,6 +148,7 @@ TSIQ.render = TSIQ.render || {};
     '.nav button{background:rgba(255,255,255,.08);color:#eef2f7;border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:10px 18px;font-size:16px;cursor:pointer}' +
     '.nav button:hover{background:rgba(255,255,255,.18)}' +
     '.counter{color:#7e8c98;font-size:14px;margin-right:8px;font-family:var(--mono)}' +
+    '.version-stamp{color:#4a5560;font-size:11px;margin-right:8px;font-family:var(--mono)}' +
     '.progress{position:fixed;top:0;left:0;height:4px;background:var(--gold);transition:width .3s;z-index:10}';
   }
 
@@ -170,9 +188,7 @@ TSIQ.render = TSIQ.render || {};
   /** data: { clientName, firmName, profile, baseline, scenarios, years, growthRate } */
   TSIQ.render.slideshow = function (data) {
     var year = TSIQ.TABLES_2026.taxYear;
-    var best = data.scenarios.reduce(function (a, b) {
-      return b.result.totals.totalBurden < a.result.totals.totalBurden ? b : a;
-    }, data.scenarios[0]);
+    var best = TSIQ.bestScenario(data.scenarios, data.forcedWinnerLabel);
     var baseR = data.baseline.years[0];
     var planR = best.result.years[0];
     var b0 = baseR.totalBurden;
@@ -181,36 +197,41 @@ TSIQ.render = TSIQ.render || {};
     var pctSmaller = b0 > 0 ? Math.round(yr1Savings / b0 * 100) : 0;
     var effRate = baseR.totalIncome > 0 ? (b0 / baseR.totalIncome * 100).toFixed(1) : '0';
 
-    var uniqueStrategies = [];
-    data.scenarios.forEach(function (sc) {
-      sc.strategies.forEach(function (s) {
-        if (uniqueStrategies.indexOf(s) === -1) uniqueStrategies.push(s);
-      });
-    });
+    // Strategy list must match the BEST scenario only — every dollar figure
+    // in this deck (yr1Savings, cumSavings, stepSavings) comes from `best`,
+    // so pulling strategies from OTHER scenarios here would show moves that
+    // aren't part of the plan the numbers describe.
+    var uniqueStrategies = best.strategies.slice();
     var n = uniqueStrategies.length;
     var movesWord = n + (n === 1 ? ' move' : ' moves');
 
-    // Incremental first-year savings per strategy (best scenario, in order)
+    // WF1: use the BEST scenario's own (possibly override-merged) profile
+    // for anything scenario-specific — data.profile is the un-overridden
+    // base and would make these figures inconsistent with best.result
+    // whenever a per-scenario fact override (filing status, state rate,
+    // income multiplier) is active.
+    var bestProfile = best.profile || data.profile;
+
+    // Incremental first-year (and cumulative, ET2) savings per strategy
+    // (best scenario, in order).
     var stepSavings = {};
-    if (data.profile && best.selections) {
-      var ordered = best.selections.slice().sort(function (a, b) {
-        return a.strategy.applyOrder - b.strategy.applyOrder;
-      });
-      var running = [], prevBurden = b0;
-      ordered.forEach(function (sel) {
-        running.push(sel);
-        var r = TSIQ.computeScenario(data.profile, running, data.years, data.growthRate);
-        stepSavings[sel.strategy.id] = prevBurden - r.years[0].totalBurden;
-        prevBurden = r.years[0].totalBurden;
-      });
+    var permanentCum = 0, notPermanentCum = 0;
+    if (bestProfile && best.selections) {
+      TSIQ.incrementalSavings(bestProfile, best.selections, data.years, data.growthRate,
+        b0, data.baseline.totals.totalBurden)
+        .forEach(function (step) {
+          stepSavings[step.strategy.id] = step.incremental;
+          if ((step.strategy.character || 'permanent') === 'permanent') permanentCum += step.cumulativeIncremental;
+          else notPermanentCum += step.cumulativeIncremental;
+        });
     }
 
     var brand = TSIQ.brand || {};
-    var gold = (!brand.color || brand.color === '#8a6d3b') ? '#C9962A' : brand.color;
+    var brandColorRaw = safeBrandColor(TSIQ.DEFAULT_BRAND_COLOR);
+    var gold = (brandColorRaw === TSIQ.DEFAULT_BRAND_COLOR) ? '#C9962A' : brandColorRaw;
     var firmName = data.firmName || brand.name || 'Your Firm';
-    var logoImg = brand.logo
-      ? '<img src="' + brand.logo + '" style="max-height:56px;max-width:220px" alt="">' : '';
-    var fsLabel = TSIQ.FILING_STATUS_LABELS[(data.profile && data.profile.filingStatus) || 'mfj'];
+    var logoImg = safeBrandLogoImg('max-height:56px;max-width:220px');
+    var fsLabel = TSIQ.FILING_STATUS_LABELS[(bestProfile && bestProfile.filingStatus) || 'mfj'];
 
     /* ------------------------------ 1 · title ----------------------------- */
     var slides = '<section class="slide s-navy active"><div class="slide-pad" style="justify-content:space-between">' +
@@ -325,7 +346,9 @@ TSIQ.render = TSIQ.render || {};
     var cols = Math.min(n, 5);
     var overviewCards = uniqueStrategies.map(function (s, i) {
       var sv = stepSavings[s.id];
-      var amount = (sv !== undefined && sv >= 500)
+      // A meaningfully NEGATIVE first-year effect is a real cost — show the
+      // signed figure rather than mislabeling it "Foundation".
+      var amount = (sv !== undefined && (sv >= 500 || sv <= -500))
         ? usd(sv)
         : (s.modeled === false ? 'Foundation' : '&mdash;');
       return '<div class="card on-dark anim-' + Math.min(i + 2, 5) + '" style="padding:38px 28px;display:flex;flex-direction:column">' +
@@ -351,6 +374,9 @@ TSIQ.render = TSIQ.render || {};
       if (sv !== undefined && sv >= 500) {
         calloutLabel = 'Estimated first-year savings';
         calloutValue = '<div class="mono" style="font-size:64px;font-weight:700">' + usd(sv) + '</div>';
+      } else if (sv !== undefined && sv <= -500) {
+        calloutLabel = 'Year-one investment — pays off in strategies that follow';
+        calloutValue = '<div class="mono" style="font-size:64px;font-weight:700;color:#c0392b">' + usd(sv) + '</div>';
       } else {
         calloutLabel = 'Foundation move';
         calloutValue = '<div class="serif" style="font-size:34px;font-weight:700;line-height:1.25">Strengthens the whole plan</div>';
@@ -360,13 +386,12 @@ TSIQ.render = TSIQ.render || {};
           '<span class="check">&#10003;</span>' +
           '<span style="font-size:22px;line-height:1.55;color:var(--ink-soft)">' + esc(b) + '</span></li>';
       }).join('');
-      var nameParts = s.name.length > 22 ? s.name : s.name; // display as-is; CSS wraps
       slides += '<section class="slide s-white"><div class="slide-pad">' +
         '<div style="display:flex;gap:90px;flex:1">' +
         '<div style="flex:0 0 540px;display:flex;flex-direction:column;justify-content:center">' +
         '<div class="num-index anim" style="font-size:150px">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</div>' +
         '<div class="kicker no-rule anim" style="margin:18px 0 18px">Strategy ' + (['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten'][i + 1] || (i + 1)) + '</div>' +
-        '<h2 class="display anim" style="font-size:62px;line-height:1.05">' + esc(nameParts) + '</h2>' +
+        '<h2 class="display anim" style="font-size:62px;line-height:1.05">' + esc(s.name) + '</h2>' +
         '<div class="anim-2" style="margin-top:46px;background:var(--cream);border-left:4px solid var(--gold);border-radius:12px;padding:30px 34px">' +
         '<div style="font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);margin-bottom:10px">' + calloutLabel + '</div>' +
         calloutValue + '</div></div>' +
@@ -387,28 +412,31 @@ TSIQ.render = TSIQ.render || {};
       '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:50px;align-items:center;margin-bottom:auto">' +
       '<div class="card on-dark anim-2" style="padding:50px 54px">' +
       '<div class="pill" style="background:rgba(192,57,43,.2);color:#F2B8B0;margin-bottom:26px">Without changes</div>' +
-      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:var(--on-navy-soft)">' + usd(b0) + '</div>' +
+      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:var(--on-navy-soft)">' + usdApprox(b0) + '</div>' +
       '<div style="margin-top:24px;display:flex;gap:40px;color:var(--on-navy-soft);font-size:19px">' +
       '<span>Federal <b class="mono" style="color:#fff">' + usd(baseR.totalFederal) + '</b></span>' +
       '<span>State <b class="mono" style="color:#fff">' + usd(baseR.totalState) + '</b></span></div></div>' +
       '<div class="anim-3" style="color:var(--gold);font-size:90px;line-height:1">&rarr;</div>' +
       '<div class="anim-3" style="padding:50px 54px;background:var(--green);border-radius:16px;box-shadow:0 18px 50px rgba(15,26,36,.4)">' +
       '<div class="pill" style="background:rgba(255,255,255,.22);color:#fff;margin-bottom:26px">With the plan</div>' +
-      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:#fff">' + usd(planR.totalBurden) + '</div>' +
+      '<div class="mono" style="font-size:104px;font-weight:700;line-height:.95;color:#fff">' + usdApprox(planR.totalBurden) + '</div>' +
       '<div style="margin-top:24px;display:flex;gap:40px;color:rgba(255,255,255,.85);font-size:19px">' +
       '<span>Federal <b class="mono" style="color:#fff">' + usd(planR.totalFederal) + '</b></span>' +
       '<span>State <b class="mono" style="color:#fff">' + usd(planR.totalState) + '</b></span></div></div></div>' +
       '<div class="anim-4" style="margin-top:60px;background:var(--gold);border-radius:16px;padding:44px 60px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 18px 50px rgba(15,26,36,.4)">' +
       '<div><div style="font-size:19px;text-transform:uppercase;letter-spacing:.12em;color:var(--navy-700);font-weight:700">Total tax savings in ' + year + '</div>' +
       '<div style="font-size:22px;color:var(--navy-700);margin-top:8px">A <b>' + pctSmaller + '% smaller</b> bill this year &mdash; and ' +
-      '<b>' + usd(cumSavings) + '</b> kept over the next ' + data.years + ' years.</div></div>' +
-      '<div class="mono" style="font-size:128px;font-weight:700;line-height:.9;color:var(--navy)">' + usd(yr1Savings) + '</div></div>' +
+      '<b>' + usd(cumSavings) + '</b> kept over the next ' + data.years + ' years' +
+      (notPermanentCum > 500 ? ' (<b>' + usd(permanentCum) + '</b> permanent, <b>' + usd(notPermanentCum) +
+        '</b> from timing/deferred-tax moves that shift WHEN tax is owed rather than eliminating it)' : '') +
+      '.</div></div>' +
+      '<div class="mono" style="font-size:128px;font-weight:700;line-height:.9;color:var(--navy)">' + usdApprox(yr1Savings) + '</div></div>' +
       '</div>' + foot(firmName, data.clientName) + '</section>';
 
     /* --------------------------- 8 · next steps --------------------------- */
     var recapRows = uniqueStrategies.map(function (s) {
       var sv = stepSavings[s.id];
-      var amount = (sv !== undefined && sv >= 500) ? usd(sv)
+      var amount = (sv !== undefined && (sv >= 500 || sv <= -500)) ? usd(sv)
         : (s.modeled === false ? 'Foundation' : '&mdash;');
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:20px 40px;border-bottom:1px solid var(--line-soft)">' +
         '<span class="serif" style="font-size:24px;font-weight:600">' + esc(s.name) + '</span>' +
@@ -446,14 +474,10 @@ TSIQ.render = TSIQ.render || {};
       '<style>' + stageCss(gold) + '</style></head><body>' +
       '<div class="progress"></div>' +
       '<div id="stage">' + slides + '</div>' +
-      '<div class="nav"><span class="counter"></span>' +
+      '<div class="nav"><span class="counter"></span><span class="version-stamp">v' + esc(TSIQ.APP_VERSION) + '</span>' +
       '<button id="prev">&larr;</button><button id="next">&rarr;</button></div>' +
       '<script>' + STAGE_JS + '<\/script></body></html>';
 
-    var w = window.open('', '_blank');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
+    TSIQ.render.openWindow(html);
   };
 })();

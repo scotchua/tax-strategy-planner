@@ -10,6 +10,8 @@ TSIQ.strategyModules.push({
   name: 'QSEHRA',
   category: 'Health & Fringe',
   applyOrder: 73,
+  modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

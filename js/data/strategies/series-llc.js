@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Entity Structure',
   applyOrder: 13,
   modeled: false, // advisory-only: liability/structure play, no federal tax delta
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -10,6 +10,7 @@ TSIQ.strategyModules.push({
   category: 'Business Expenses',
   applyOrder: 42,
   modeled: true,
+  character: 'timing', // ET2
 
   advisor: {
     summary:
@@ -17,8 +18,8 @@ TSIQ.strategyModules.push({
       '"passenger automobiles" under §280F(d)(5), so the luxury-auto ' +
       'depreciation caps do not apply. A heavy SUV, pickup, or van used more ' +
       'than 50% in business can be expensed in year one: §179 up to the ' +
-      'SUV-specific cap of §179(b)(5) (roughly $32,000 for 2026, indexed — ' +
-      'verify), with 100% bonus depreciation under §168(k) (permanent post-' +
+      'SUV-specific cap of §179(b)(5) ($32,000 for 2026, Rev. Proc. 2025-32), ' +
+      'with 100% bonus depreciation under §168(k) (permanent post-' +
       'OBBBA) absorbing the remaining business-use basis. The result is a full ' +
       'first-year write-off of the business percentage of the vehicle\'s cost. ' +
       'The benefit is timing: depreciation is used up in year one, and §280F ' +
@@ -27,8 +28,8 @@ TSIQ.strategyModules.push({
       'GVWR above 6,000 lbs (check the door-jamb sticker, not curb weight) ' +
       'takes the vehicle outside the §280F(d)(5) passenger-auto definition — ' +
       'no luxury-auto annual caps.',
-      '§179(b)(5) imposes a special cap on heavy SUVs ($25,000 base, indexed — ' +
-      'approximately $32,000 for 2026); pickups with a 6-ft+ bed and certain ' +
+      '§179(b)(5) imposes a special cap on heavy SUVs ($25,000 base, indexed ' +
+      'to $32,000 for 2026); pickups with a 6-ft+ bed and certain ' +
       'vans (seating 9+ behind the driver / cargo configuration) escape the ' +
       'SUV cap entirely.',
       'In practice the SUV cap rarely matters now: 100% bonus depreciation ' +
@@ -47,7 +48,7 @@ TSIQ.strategyModules.push({
       'as ordinary income; sale also triggers §1245 recapture of all depreciation.'
     ],
     authority: [
-      { type: 'IRC', cite: 'IRC §179; §179(b)(5)', note: 'Election to expense; the SUV cap ($25,000 indexed, ~$32,000 for 2026 — verify against the annual revenue procedure) for heavy SUVs exempt from §280F caps.' },
+      { type: 'IRC', cite: 'IRC §179; §179(b)(5)', note: 'Election to expense; the SUV cap ($25,000 indexed, $32,000 for 2026 per Rev. Proc. 2025-32) for heavy SUVs exempt from §280F caps.' },
       { type: 'IRC', cite: 'IRC §168(k)', note: '100% bonus depreciation, permanent post-OBBBA (P.L. 119-21) for qualified property acquired and placed in service after 1/19/2025 — no SUV cap applies to bonus.' },
       { type: 'IRC', cite: 'IRC §280F(d)(5)', note: '"Passenger automobile" limited to GVW rating of 6,000 lbs or less — heavy vehicles escape the luxury-auto caps.' },
       { type: 'IRC', cite: 'IRC §280F(b); §274(d)', note: 'Listed-property rules: >50% qualified business use required for §179/accelerated MACRS; recapture if use drops; strict contemporaneous substantiation.' },
@@ -148,6 +149,10 @@ TSIQ.strategyModules.push({
 
     if (yearIndex === 0) {
       delta = -(businessShare - slPerYear);
+      // Tracked for the plan-level "accelerated depreciation accumulating"
+      // materiality note (scenario-engine.js) — quantifies future §1245/§280F
+      // recapture-on-sale exposure this tool does not model.
+      state.acceleratedDepAccumulated = (state.acceleratedDepAccumulated || 0) + (businessShare - slPerYear);
       notes.push(TSIQ.fmt.usd(businessShare) + ' first-year write-off (§179 up to the ' +
         'indexed SUV cap, 100% bonus under §168(k) on the balance) on ' +
         TSIQ.fmt.usd(params.vehicleCost || 0) + ' × ' + Math.round(usePct * 100) + '% business use.');

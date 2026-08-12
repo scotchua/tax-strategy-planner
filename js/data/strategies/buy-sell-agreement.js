@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'Succession & Exit',
   applyOrder: 91,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'QBI Optimization',
   applyOrder: 24,
   modeled: false,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:

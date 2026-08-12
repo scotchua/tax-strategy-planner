@@ -11,6 +11,7 @@ TSIQ.strategyModules.push({
   category: 'QBI Optimization',
   applyOrder: 21, // after S-corp election (10) restructures income
   modeled: true,
+  character: 'permanent', // ET2
 
   advisor: {
     summary:
