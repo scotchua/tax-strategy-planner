@@ -207,15 +207,62 @@ function check(name, actual, expected, tol) {
 /* -------------------------------------------------------------------------
  * Fixture 12 — OBBBA senior deduction MAGI phase-out (6% over threshold),
  * MFJ, both spouses 65+, high income.
+ *
+ * CORRECTED. This fixture previously expected seniorDeductionAllowed = 3,000
+ * here, which encoded an engine bug: the 6% reduction was applied ONCE to the
+ * couple's aggregate $12,000 (12,000 - 0.06 * 150,000 = 3,000). The statute
+ * reduces "the $6,000 amount", meaning each qualifying individual's own
+ * $6,000, floored at zero per person. At $300,000 of MAGI each spouse's
+ * reduction is 0.06 * 150,000 = 9,000, which wipes out each $6,000
+ * separately, so the correct answer is ZERO. Cross-checked against the
+ * published full-phase-out figures, which are only consistent with the
+ * per-person reading: $175,000 single ($75,000 + 6,000/6%) and $250,000 joint
+ * ($150,000 + 6,000/6%). Under the aggregate reading a two-senior couple
+ * would keep part of the deduction all the way to $350,000.
+ *
+ * The other four corrections here are pure arithmetic consequences of that one
+ * line: deduction and taxableIncome move by exactly 3,000, and incomeTax and
+ * totalBurden by 3,000 * 0.24 = 720 (the marginal rate at this income).
  * ---------------------------------------------------------------------- */
 (function () {
   var r = TSIQ.computeYear({ filingStatus: 'mfj', wages: 300000, age65Count: 2 }, {});
-  check('F12 seniorDeductionAllowed (phased from 12000)', r.seniorDeductionAllowed, 3000);
-  check('F12 deduction', r.deduction, 38500);
-  check('F12 taxableIncome', r.taxableIncome, 261500);
-  check('F12 incomeTax', r.incomeTax, 47956);
+  check('F12 seniorDeductionAllowed (fully phased out above $250k MAGI)', r.seniorDeductionAllowed, 0);
+  check('F12 deduction (std 32200 + 2 x aged 1650, no senior deduction left)', r.deduction, 35500);
+  check('F12 taxableIncome', r.taxableIncome, 264500);
+  check('F12 incomeTax', r.incomeTax, 48676);
   check('F12 addlMedicare', r.addlMedicare, 450);
-  check('F12 totalBurden', r.totalBurden, 48406);
+  check('F12 totalBurden', r.totalBurden, 49126);
+})();
+
+/* -------------------------------------------------------------------------
+ * Fixture 12b — the senior deduction phase-out boundaries, per qualifying
+ * individual. These pin the per-person mechanics directly so the aggregate
+ * reading cannot creep back in: the reduction is 6% of the MAGI excess
+ * against EACH $6,000, and each is floored at zero independently.
+ * ---------------------------------------------------------------------- */
+(function () {
+  function senior(fs, agi, count) {
+    return TSIQ.computeYear({ filingStatus: fs, wages: agi, age65Count: count }, {}).seniorDeductionAllowed;
+  }
+  // At or below the threshold: full amount, one per qualifying individual.
+  check('F12b MFJ at the $150k threshold, 2 seniors: full 12000', senior('mfj', 150000, 2), 12000);
+  check('F12b MFJ at the $150k threshold, 1 senior: full 6000', senior('mfj', 150000, 1), 6000);
+  check('F12b single at the $75k threshold: full 6000', senior('single', 75000, 1), 6000);
+  // Mid-phase-out: each $6,000 reduced by the SAME per-person reduction, so a
+  // two-senior couple gets exactly twice a one-senior couple's amount.
+  check('F12b MFJ at $200k, 2 seniors: 2 x (6000 - 0.06*50000) = 6000', senior('mfj', 200000, 2), 6000);
+  check('F12b MFJ at $200k, 1 senior: 6000 - 3000 = 3000', senior('mfj', 200000, 1), 3000);
+  check('F12b two seniors are exactly twice one senior mid-phase-out',
+    senior('mfj', 200000, 2) - 2 * senior('mfj', 200000, 1), 0, 0.01);
+  // Full phase-out lands at threshold + 6000/0.06 = threshold + 100000,
+  // regardless of how many qualifying individuals there are.
+  check('F12b MFJ at exactly $250k, 2 seniors: 0', senior('mfj', 250000, 2), 0, 0.01);
+  check('F12b MFJ at exactly $250k, 1 senior: 0', senior('mfj', 250000, 1), 0, 0.01);
+  check('F12b single at exactly $175k: 0', senior('single', 175000, 1), 0, 0.01);
+  check('F12b MFJ just below $250k, 2 seniors: small but positive',
+    senior('mfj', 249000, 2), 120, 0.01); // 2 * (6000 - 0.06*99000) = 2 * 60
+  // No qualifying individual, no deduction, at any income.
+  check('F12b MFJ with age65Count 0: none', senior('mfj', 100000, 0), 0);
 })();
 
 /* -------------------------------------------------------------------------
