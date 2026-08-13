@@ -65,6 +65,118 @@ function checkAll(label, result, expected) {
 }
 
 /* ===========================================================================
+ * W0 — THE IRS'S OWN WORKED EXAMPLES. Publication 915 carries three complete
+ * fact patterns with the resulting Form 1040 line 6b printed. These are the
+ * only assertions in this repository whose expected values were computed by
+ * the IRS rather than derived here, which makes them the strongest evidence in
+ * the whole suite.
+ *
+ * They transfer to 2026 unconditionally. Every dollar figure in each example is
+ * either a taxpayer-specific input or a statutory §86 constant, and the §86
+ * base amounts ($25,000/$32,000 base, $34,000/$44,000 adjusted base) have never
+ * been indexed since they were enacted in 1983 and 1993. No standard deduction,
+ * no bracket, no indexed amount touches any of them. They will not need
+ * re-deriving when the 2027 tables land — if one of these ever fails, the §86
+ * implementation changed, not the tables.
+ *
+ * PROVENANCE, stated plainly: the IRS PDF is not fetchable from this
+ * environment (the egress proxy blocks irs.gov), so each example's INPUTS and
+ * its PUBLISHED line 6b figure came from search-index extraction of Pub 915,
+ * corroborated across the 2022, 2023 and 2025 editions, which carry identical
+ * figures. The filled-in worksheet images were not read. What raises confidence
+ * above "a number someone typed" is that the engine independently reproduces
+ * all three published answers exactly, through three different code paths
+ * (tier 1 with the half-of-benefits cap binding, the below-base-amount stop,
+ * and tier 2). Getting three different published answers right by coincidence
+ * is not plausible.
+ *
+ * A reviewer wanting to close the loop should open Pub 915 and confirm the
+ * three input sets. The published outputs are $2,990, -0- and $6,275.
+ * ======================================================================== */
+(function () {
+  // ---- Example 1: George White, single. Tier 1, and the half-of-benefits
+  // cap at Worksheet 1 line 15 is what pins the answer.
+  //   pension 18,600 + part-time wages 9,400 + taxable interest 990 = 28,990
+  //   net benefits (SSA-1099 box 5) 5,980
+  //   provisional = 28,990 + 2,990 = 31,980, which is at or below the 34,000
+  //   adjusted base amount, so tier 1 governs:
+  //     min(0.5 * (31,980 - 25,000), 0.5 * 5,980) = min(3,490, 2,990) = 2,990
+  //   IRS PUBLISHED Form 1040 line 6b = 2,990
+  check('W0.1 Pub 915 Example 1 (George White) ties to the IRS-published $2,990',
+    TSIQ.taxableSocialSecurity('single', 28990, 5980), 2990, 0.01);
+  // The same fact pattern all the way through computeYear, not just the
+  // exposed helper, so the wiring is covered too.
+  var george = TSIQ.computeYear({
+    filingStatus: 'single', otherIncome: 18600, wages: 9400, interest: 990,
+    ssBenefitsGross: 5980, stateRate: 0
+  }, {});
+  check('W0.1 the same example through computeYear', george.ssTaxable, 2990, 0.01);
+  check('W0.1 AGI is the 28,990 of other income plus the 2,990 of benefits',
+    george.agi, 31980, 0.01);
+  check('W0.1 the half-of-benefits cap is what binds (not the 50%-of-excess figure)',
+    george.ssTaxable, 0.5 * 5980, 0.01);
+
+  // ---- Example 2: Ray and Alice Hopkins, MFJ. Below the base amount, so the
+  // worksheet STOPS and none of the benefits are taxable. What puts them under
+  // is Alice's $1,000 deductible IRA contribution, which is why this example is
+  // worth keeping: it proves adjustments reduce provisional income.
+  //   pension 15,500 + wages 14,000 + interest 250 = 29,750, less 1,000 IRA
+  //   net benefits 5,600
+  //   provisional = 28,750 + 2,800 = 31,550, below the 32,000 MFJ base amount
+  //   IRS PUBLISHED Form 1040 line 6b = -0-
+  check('W0.2 Pub 915 Example 2 (Ray and Alice Hopkins) ties to the IRS-published -0-',
+    TSIQ.taxableSocialSecurity('mfj', 28750, 5600), 0, 0.01);
+  var hopkins = TSIQ.computeYear({
+    filingStatus: 'mfj', otherIncome: 15500, wages: 14000, interest: 250,
+    adjustments: 1000, ssBenefitsGross: 5600, stateRate: 0
+  }, {});
+  check('W0.2 the same example through computeYear', hopkins.ssTaxable, 0, 0.01);
+  // Remove the IRA deduction and benefits MUST become taxable, or the
+  // adjustment is not actually reaching provisional income.
+  var withoutIRA = TSIQ.computeYear({
+    filingStatus: 'mfj', otherIncome: 15500, wages: 14000, interest: 250,
+    adjustments: 0, ssBenefitsGross: 5600, stateRate: 0
+  }, {});
+  check('W0.2 dropping the IRA deduction makes benefits taxable (adjustments reach provisional income)',
+    withoutIRA.ssTaxable > 0 ? 1 : 0, 1, 0);
+
+  // ---- Example 3: Joe and Betty Johnson, MFJ. The only one of the three that
+  // exercises BOTH tiers, and it also exercises the excluded-income add-back.
+  //   pension 38,000 + taxable interest 2,300 = 40,300
+  //   plus 200 of §135-excluded savings bond interest, added back at
+  //   Worksheet 1 line 5 -> 40,500 of modified other income
+  //   net benefits (RRB-1099 box 5, the SSEB portion) 10,000
+  //   provisional = 40,500 + 5,000 = 45,500, above the 44,000 adjusted base:
+  //     tier-1 component = min(0.5 * (44,000 - 32,000), 0.5 * 10,000) = 5,000
+  //     tier-2 component = 0.85 * (45,500 - 44,000) = 1,275
+  //     total 6,275, under the 8,500 ceiling (85% of 10,000)
+  //   IRS PUBLISHED Form 1040 line 6b = 6,275
+  check('W0.3 Pub 915 Example 3 (Joe and Betty Johnson) ties to the IRS-published $6,275',
+    TSIQ.taxableSocialSecurity('mfj', 40500, 10000), 6275, 0.01);
+  // Through computeYear, with the §135 add-back folded into other income. The
+  // engine has no savings-bond-exclusion field (a documented gap), so the
+  // add-back has to be supplied by the caller — which is exactly what an
+  // advisor would do, and is noted here so nobody "fixes" this by removing it.
+  var johnson = TSIQ.computeYear({
+    filingStatus: 'mfj', otherIncome: 38200, interest: 2300,
+    ssBenefitsGross: 10000, stateRate: 0
+  }, {});
+  check('W0.3 the same example through computeYear (add-back folded into other income)',
+    johnson.ssTaxable, 6275, 0.01);
+  check('W0.3 the 85%-of-gross ceiling is NOT what binds here', johnson.ssTaxable < 0.85 * 10000 ? 1 : 0, 1, 0);
+  check('W0.3 both tiers contribute (result exceeds the tier-1 component alone)',
+    johnson.ssTaxable > 5000 ? 1 : 0, 1, 0);
+
+  // All three published answers, reproduced through three different branches of
+  // the same function. Asserted together as one statement of the fact that
+  // matters: the §86 implementation agrees with the IRS.
+  check('W0 all three IRS-published answers reproduce exactly',
+    (TSIQ.taxableSocialSecurity('single', 28990, 5980) === 2990 ? 1 : 0) +
+    (TSIQ.taxableSocialSecurity('mfj', 28750, 5600) === 0 ? 1 : 0) +
+    (TSIQ.taxableSocialSecurity('mfj', 40500, 10000) === 6275 ? 1 : 0), 3, 0);
+})();
+
+/* ===========================================================================
  * W1 — §86 Social Security benefits, 85% tier, below the senior-deduction
  * phase-out. MFJ retiree, both spouses 65+.
  *

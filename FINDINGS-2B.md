@@ -203,3 +203,74 @@ product decision, not a bug fix.
 The excess-business-loss strategy's note still says the engine does not enforce
 the §461(l) cap. It does now (Wave C). One-line correction, but it currently
 tells the advisor the tool checked less than it did.
+
+---
+
+## Statutory cap register
+
+A separate pass mapped every modeled strategy with a dollar input to the
+statutory limit that governs it, then read the code to see whether the limit is
+enforced. **42 caps mapped, 18 not enforced.** The mechanical part of this is now
+asserted by I10, which fails when a constant already sitting in
+`TABLES_2026.limits` has no arithmetic consumer at all.
+
+### Dead constants: a cap the tables already know and nothing reads
+
+| Constant | Value | Should be enforced by |
+|---|---|---|
+| `limits.qsbs.perIssuerCap` | $15,000,000 | `qsbs-1202` |
+| `limits.qsbs.grossAssetCap` | $75,000,000 | `qsbs-1202` |
+| `limits.retirement.dbAnnualBenefit` | $290,000 | `defined-benefit-plan` |
+
+`qsbs-1202` clamps its exclusion to the available LTCG but never to the §1202
+per-issuer cap. `defined-benefit-plan` is the least bounded modeled strategy in
+the library: the only clamp in the file limits the contribution to Schedule C
+profit on the self-employed branch, and the W-2-owner branch has no cap at all.
+
+Six further constants are unread **by design** (IRA limits, §79 group term life,
+the kiddie-tax threshold, the gift and estate figures). They support advisory
+strategies with no scenario math, and are now listed explicitly as
+`REFERENCE_ONLY` in the test with the reason, so "unused" is a stated decision
+rather than an oversight.
+
+### Uncapped, and the ceiling is not in the tables yet
+
+Each of these needs a new constant before it can be enforced, which is why none
+is asserted:
+
+- `childcare-credit-45f` — the §45F(b) annual cap ($500,000, $600,000 for
+  eligible small businesses) is stated in the strategy's own advisor text but
+  exists nowhere in the tables or the code.
+- `qsehra` — the §9831(d)(2) indexed per-employee cap.
+- `energy-179d` — §179D is a per-square-foot deduction and the strategy takes a
+  flat dollar amount with no rate, no square footage, and no ceiling.
+- `daf-bunching` — the §170(b)(1) AGI percentage ceilings (60% cash, 30%
+  appreciated property) are modeled nowhere, and the strategy says so in a note.
+- `education-529` — the state deduction is unlimited; `stateOnlyDeduction` flows
+  straight into the state base with no ceiling.
+- `nol-planning` — the §172(a)(2) 80% limitation genuinely does not reach an
+  advisor-entered NOL, because the strategy bypasses the engine's own NOL path.
+  The disclosure was corrected to say exactly that.
+- `heavy-vehicle-179` — no §179 dollar limit, no SUV cap, no §179(b)(3)
+  business-income limitation, no §280F ceiling, and no GVWR input to decide
+  which regime applies.
+- `section-179-expensing` — half enforced. The dollar limit IS clamped; the
+  §179(b)(2) phase-down above `phaseOutStart` is not, and appears only inside a
+  note string.
+- `profit-sharing-new-comparability` — `ownerAllocation` is correctly capped at
+  §415(c) and owner compensation, but `staffCost` has no limit at all.
+- `cash-balance-stack` — clamped only to owner earned income; no §415(b), no
+  §415(c), no §404(a)(7).
+- `spouse-payroll` — FICA is charged at 7.65% on every dollar of spouse salary
+  with no Social Security wage base cap, so a large salary is overcharged.
+
+### Suggested order
+
+1. The three dead constants. The ceilings already exist; this is wiring.
+2. `spouse-payroll`'s missing wage base cap. Pure arithmetic, no judgment.
+3. `section-179-expensing`'s phase-down. The constant exists.
+4. The rest, each of which needs a new table constant sourced and cited.
+
+Everything in this section is a *bound* on what an advisor can type, not a
+change to what a correct entry produces. None of it affects a plan built with
+plausible figures; all of it affects what happens when someone fat-fingers one.

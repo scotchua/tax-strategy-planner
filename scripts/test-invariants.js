@@ -59,6 +59,21 @@ var T = TSIQ.TABLES_2026;
  * ----------------------------------------------------------------------- */
 var KNOWN_DEFECTS = [
   {
+    match: 'I10 no statutory limit',
+    why: 'Three statutory caps sit in TABLES_2026.limits and nothing reads them, so an advisor ' +
+      'can type past a ceiling the tables already know about. limits.qsbs.perIssuerCap ' +
+      '($15,000,000) and limits.qsbs.grossAssetCap ($75,000,000): qsbs-1202 clamps its exclusion ' +
+      'to the available LTCG but never to the §1202 per-issuer cap. ' +
+      'limits.retirement.dbAnnualBenefit ($290,000): defined-benefit-plan applies NO cap at all on ' +
+      'its W-2-owner branch (the only clamp in the file is the SE branch limiting the ' +
+      'contribution to Schedule C profit), which makes it the least bounded modeled strategy in ' +
+      'the library. Fixing these needs a decision per strategy about which ceiling applies to ' +
+      'which input, and for the DB plan the real limit is actuarial rather than a flat constant, ' +
+      'so it is a judgment call rather than a one-line clamp. Fifteen further uncapped params are ' +
+      'catalogued in FINDINGS-2B.md; they need new table constants that do not exist yet ' +
+      '(§45F, QSEHRA, §179D per-square-foot rates, the §170(b)(1) AGI ceilings).'
+  },
+  {
     match: 'I2 simple-ira + ',
     why: 'The Notice 98-4 exclusive-plan guard is applyOrder-based, so it suppresses whichever ' +
       'plan happens to run second rather than the smaller one. simple-ira (applyOrder 63) is ' +
@@ -424,6 +439,63 @@ function savings(ids) { return savingsOn(BED, ids, 1, 0); }
   });
   assertNear('I9 the tracker totals the family exactly (no double count, no dropped claim)',
     combinedState.acceleratedDepAccumulated, individualTotal, 1);
+})();
+
+/* =========================================================================
+ * I10 — DEAD CONSTANTS. Every numeric limit in TABLES_2026.limits was put
+ * there on purpose. One that nothing in js/ ever reads is a cap somebody
+ * intended to enforce and did not, which means an advisor can type a figure
+ * past a statutory ceiling the tables already know about and get the full
+ * deduction. This needs no tax judgment to detect: it is a reference check.
+ *
+ * The tables ARE the single source of truth for tax constants (see CLAUDE.md),
+ * so this also guards the reverse direction — a constant that goes unread
+ * because its consumer was refactored away.
+ * ====================================================================== */
+(function () {
+  // Every .js under js/, concatenated. Cheap, and the tree is small.
+  var sources = '';
+  (function walk(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach(function (e) {
+      var full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full); return; }
+      if (/\.js$/.test(e.name)) sources += fs.readFileSync(full, 'utf8');
+    });
+  })(path.join(root, 'js'));
+
+  // Constants that exist for the ADVISOR's reference, quoted in a strategy's
+  // prose or used by a human reading the tables, with no arithmetic consumer by
+  // design. Listed explicitly with the reason, so "unused" is a deliberate
+  // statement rather than a gap nobody noticed.
+  var REFERENCE_ONLY = {
+    'limits.retirement.iraLimit': 'IRA contributions are not a modeled strategy; the figure is here for the advisor',
+    'limits.retirement.iraCatchUp': 'same as iraLimit',
+    'limits.fringe.groupTermLifeExclusion': '§79 exclusion is advisory-only in the library',
+    'limits.kiddieTaxUnearnedThreshold': 'kiddie tax is not computed; the figure supports the hire-children advisory text',
+    'limits.gift.annualExclusion': 'gifting strategies are advisory; no scenario math consumes it',
+    'limits.gift.estateExemption': 'estate planning is advisory; no scenario math consumes it'
+  };
+
+  var dead = [];
+  (function scan(obj, trail) {
+    Object.keys(obj).forEach(function (k) {
+      var v = obj[k];
+      var here = trail.concat([k]);
+      if (v && typeof v === 'object' && !Array.isArray(v)) { scan(v, here); return; }
+      if (typeof v !== 'number') return;
+      // A leaf is "reached" if its own key name appears anywhere in js/ other
+      // than the tables file itself. Key names in this library are distinctive
+      // enough (perIssuerCap, phaseOutStart, dbAnnualBenefit) that a bare name
+      // match is a fair proxy for "something consults it".
+      var uses = sources.split(k).length - 1;
+      // 1 occurrence is the definition in tax-tables-2026.js and nothing else.
+      var pathKey = here.join('.');
+      if (uses <= 1 && !REFERENCE_ONLY[pathKey]) dead.push(pathKey + ' = ' + v);
+    });
+  })(T.limits, ['limits']);
+
+  assertTrue('I10 no statutory limit in TABLES_2026.limits is a dead constant',
+    dead.length === 0, dead.join(' | '));
 })();
 
 /* ------------------------------- report -------------------------------- */
