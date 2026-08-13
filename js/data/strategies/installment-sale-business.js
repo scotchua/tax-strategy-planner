@@ -148,7 +148,15 @@ TSIQ.strategyModules.push({
           '). Enter the FULL lump-sum gain in the baseline\'s LTCG field — this strategy ' +
           'replaces the lump with the installment spread. Results are not meaningful until then.');
       }
-      p.ltcg = p.ltcg - gain + slice;
+      // Remove no more lump-sum gain than the profile actually has. Without the
+      // clamp, a totalGain larger than the entered LTCG drove p.ltcg NEGATIVE
+      // (a $5,000,000 gain against $500,000 of entered LTCG produced
+      // -$3,500,000), which the engine then reads as a capital LOSS and turns
+      // into a §1211(b) deduction plus a carryforward — a fabricated tax
+      // benefit out of a data-entry mistake, on top of the note above. Every
+      // other strategy that reduces p.ltcg (qsbs-1202, like-kind-1031,
+      // opportunity-zones, installment-sale-property) already clamps this way.
+      p.ltcg = Math.max(0, (p.ltcg || 0) - gain) + slice;
       notes.push('Year 1: lump-sum gain of ' + TSIQ.fmt.usd(gain) +
         ' replaced with installment slice of ' + TSIQ.fmt.usd(slice) + ' (' + n +
         '-year spread, §453). Years 2–' + n + ' each recognize another ' +

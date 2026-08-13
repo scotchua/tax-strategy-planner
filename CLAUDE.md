@@ -148,6 +148,21 @@ needs to change.
   2026 tables while worksheet STRUCTURE comes from the IRS document, and each
   fixture records which of its inputs are statutory (survive a table refresh)
   and which are indexed (need re-deriving).
+- `node scripts/test-invariants.js` — 48 assertions asking a different question
+  from the other suites: can the tool promise a client more than the law
+  allows? Scoped to strategies that share a statutory limit or the same
+  dollars (§415(c) annual additions, §179, the LTCG pool, the depreciation
+  tracker), plus a positive control on the general-business-credit family.
+  Read the header before adding to it: "combined savings must not exceed the
+  sum of the individual savings" is NOT a valid general rule, because
+  strategies legitimately compound (an S-corp election creates entityW2Wages
+  and unlocks the §199A wage prong). Savings comparisons run on a linearized
+  profile so progressivity is the only nonlinearity left.
+  Carries a `KNOWN_DEFECTS` registry for real defects awaiting a
+  licensed-review call (see `FINDINGS-2B.md`). The suite exits 0 only when the
+  failure set is EXACTLY that registry: a new break fails the run, and a known
+  defect that starts passing ALSO fails the run so the registry cannot rot.
+  Every known defect prints on every run; nothing is suppressed.
 - `node scripts/test-renderers.js` — 48 assertions that the four renderers
   agree with each other and with the engine on the headline figures, that
   per-strategy incrementals use the scenario's own (possibly overridden)

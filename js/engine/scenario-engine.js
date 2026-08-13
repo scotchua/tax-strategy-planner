@@ -134,6 +134,22 @@ window.TSIQ = window.TSIQ || {};
       profile.ownerWages = profile.ownerWages || 0;
       profile.entityW2Wages = profile.entityW2Wages || 0;
 
+      // §415(c) is an ANNUAL additions limit, so its tracker has to reset at
+      // each year boundary. `state` lives for the whole scenario (that is the
+      // point of it — suspended losses, NOLs and the depreciation-recapture
+      // total are all deliberately cumulative), and dcAnnualAdditionsUsed was
+      // riding along in that cumulative pool. The effect on a projection was
+      // severe and one-directional: a solo 401(k) at its default params
+      // deducted $44,500 in year 1, was clamped to $27,500 of "remaining
+      // headroom" in year 2, and $0 in every year after that, because the
+      // running total had reached $72,000 and never came back down. That
+      // understated the multi-year value of every retirement strategy in the
+      // library, which is the most commonly recommended family in it.
+      // Only THIS key resets. Every other state key here is cumulative by
+      // design; do not add to this list without checking that the underlying
+      // limit is genuinely annual.
+      state.dcAnnualAdditionsUsed = 0;
+
       ordered.forEach(function (sel) {
         var out = sel.strategy.apply(profile, resolveParams(sel, y, growthRate), y, state);
         profile = out.profile;

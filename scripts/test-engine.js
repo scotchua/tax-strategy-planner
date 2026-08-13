@@ -890,6 +890,36 @@ function check(name, actual, expected, tol) {
     saleOut.years[2].profile.scheduleCNet, 106090, 0.5);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 35 — §415(c) is an ANNUAL additions limit, so its shared tracker
+ * must reset at every projection-year boundary. It previously rode along in
+ * the scenario-lifetime `state` object with the genuinely cumulative keys
+ * (NOLs, suspended losses, the depreciation-recapture total), so a recurring
+ * retirement contribution ran out of "headroom" after the first year or two
+ * and then deducted nothing for the rest of the projection. One-directional
+ * understatement, on the most commonly recommended family in the library.
+ * ---------------------------------------------------------------------- */
+(function () {
+  var solo = TSIQ.getStrategy('solo-401k');
+  var params = { employeeDeferral: 24500, employerContribution: 20000, age50Plus: 'no' };
+  var profile = { filingStatus: 'mfj', scheduleCNet: 900000, entityW2Wages: 3000000, stateRate: 0 };
+  var out = TSIQ.computeScenario(profile, [{ strategy: solo, params: params }], 5, 0);
+  // The same $44,500 deduction in EVERY year, not a decaying one.
+  for (var y = 0; y < 5; y++) {
+    check('F35 §415(c) annual reset: year ' + (y + 1) + ' deducts the full contribution',
+      out.years[y].profile.adjustments, 44500, 0.01);
+  }
+  // Within a single year the shared cap still binds across the DC family.
+  var sep = TSIQ.getStrategy('sep-ira');
+  var st = {};
+  var p1 = solo.apply(profile, params, 0, st).profile;
+  var p2 = sep.apply(p1, { contribution: 30000 }, 0, st).profile;
+  check('F35 the shared cap still binds WITHIN a year (SEP clipped to 27,500)',
+    p2.adjustments - p1.adjustments, 27500, 0.01);
+  check('F35 dcAnnualAdditionsUsed reaches the annual cap within that year',
+    st.dcAnnualAdditionsUsed, TSIQ.TABLES_2026.limits.retirement.dcAnnualAdditions, 0.01);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');
