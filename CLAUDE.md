@@ -112,7 +112,7 @@ change, not a formula bug, before updating the fixture's expected value).
 3. Run `node scripts/build-index.js` (regenerates the index.html script
    block + `TSIQ.STRATEGIES` finalizer), then
    `node scripts/validate-strategies.js` (schema + smoke-test every
-   strategy across 4 synthetic profiles) and `node scripts/test-engine.js`
+   strategy across 5 synthetic profiles) and `node scripts/test-engine.js`
    (the golden-file engine suite — should still be 100% green; a new
    strategy shouldn't change any existing fixture's expected value).
 
@@ -129,8 +129,9 @@ needs to change.
 - `node scripts/validate-strategies.js` — schema validation (required
   fields, `inputs[]` shape, `conflictsWith`/`requiresOneOf` id references
   and reciprocity) plus a smoke test that runs every strategy's `apply()`
-  and `suggest()` against 4 synthetic client profiles (rich MFJ,
-  W-2-only single, a loss year, high-income SSTB) at 1x and 10x its default
+  and `suggest()` against 5 synthetic client profiles (rich MFJ,
+  W-2-only single, a loss year, high-income SSTB, and a retired MFJ couple
+  on Social Security plus IRA/pension income) at 1x and 10x its default
   param values, checking for `NaN`/negative/thrown results.
 - `node scripts/ui-smoke.js` — 41-check browser sweep of the UI surface:
   every Section 1 field and checkbox, both tab panes, library search and
@@ -146,7 +147,7 @@ needs to change.
   `SMOKE_OUT=<dir>` to keep the screenshots it captures. It is a smoke
   sweep, not exhaustive: it exercises 2 of the 109 strategies through the
   UI, since `validate-strategies.js` already runs all 109 `apply()`
-  functions against 4 profiles and the browser adds nothing there.
+  functions against 5 profiles and the browser adds nothing there.
 - Anything the smoke sweep does not cover still needs a look by hand in a
   browser. Two traps when scripting the UI, both of which cost a debugging
   round before `ui-smoke.js` accounted for them: KPI values animate via

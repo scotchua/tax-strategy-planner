@@ -61,7 +61,8 @@ var CLIENT_KEYS = ['teaser', 'headline', 'plainEnglish', 'analogy', 'benefits', 
 
 // Multiple smoke profiles: the original rich MFJ profile, plus edge cases
 // the original single-profile smoke test could never exercise (loss year,
-// W-2-only single filer, high-income SSTB near the QBI phase-out).
+// W-2-only single filer, high-income SSTB near the QBI phase-out, and a
+// retired couple on Social Security plus retirement-account distributions).
 var SMOKE_PROFILE = {
   filingStatus: 'mfj', wages: 100000, scheduleCNet: 250000, passthroughK1: 150000,
   entityW2Wages: 60000, ownerWages: 60000, isSSTB: false,
@@ -97,6 +98,23 @@ var SMOKE_PROFILES = [
       ltcg: 50000, qualDiv: 20000, interest: 10000, otherIncome: 0,
       propertyTax: 20000, mortgageInterest: 30000, charitable: 15000, otherItemized: 0,
       kidsCTC: 0, otherDeps: 0, stateRate: 0.09
+    }
+  },
+  {
+    // A retired couple: Social Security, IRA/pension distributions (otherIncome)
+    // and portfolio income, no earned income. Added because none of the four
+    // profiles above has anyone over 65 WITH retirement-account income, so the
+    // whole retiree-facing corner of the library (QCD, the §86 tiers, the aged
+    // and OBBBA senior deductions, IRMAA proximity) went unexercised — the
+    // qualified-charitable-distribution warning this suite used to emit was a
+    // coverage hole in the fixtures, not a defect in the strategy.
+    name: 'retiree-mfj', profile: {
+      filingStatus: 'mfj', wages: 0, scheduleCNet: 0, passthroughK1: 0,
+      entityW2Wages: 0, ownerWages: 0, isSSTB: false, rentalNet: 12000, rentalLossesUsable: true,
+      ltcg: 40000, qualDiv: 25000, interest: 12000, otherIncome: 130000,
+      ssBenefitsGross: 62000, age65Count: 2,
+      propertyTax: 9000, mortgageInterest: 0, charitable: 20000, otherItemized: 0,
+      kidsCTC: 0, otherDeps: 0, stateRate: 0.05
     }
   }
 ];
@@ -179,7 +197,7 @@ TSIQ.STRATEGIES.forEach(function (s) {
   }
 
   // Smoke test across several profiles (rich MFJ, W-2-only single, a loss
-  // year, and a high-income SSTB) with BOTH default params and a 10x-scaled
+  // year, a high-income SSTB, and a retiree couple) with BOTH default params and a 10x-scaled
   // stress pass (percent/select inputs untouched) — the stress pass is what
   // catches a missing legal-limit cap that the defaults-only test cannot
   // (e.g. an uncapped per-unit amount that only misbehaves at a larger
