@@ -133,6 +133,26 @@ needs to change.
   W-2-only single, a loss year, high-income SSTB, and a retired MFJ couple
   on Social Security plus IRA/pension income) at 1x and 10x its default
   param values, checking for `NaN`/negative/thrown results.
+- `node scripts/test-authority.js` — 110 assertions cross-checking the engine
+  against the governing IRS worksheets rather than against itself: the §86
+  Social Security Benefits Worksheet (both tiers and the 85%-of-gross
+  ceiling), Schedule D Part III netting plus the Qualified Dividends and
+  Capital Gain Tax Worksheet (including a short-term loss against a long-term
+  gain, and preferential income spanning all three bands), Form 8995-A Part
+  III (non-SSTB inside and above the phase-in range, and the SSTB
+  double-reduction path), and Schedule SE / Form 8959 / Form 8960 together.
+  Every expected value was derived from the worksheet BEFORE looking at engine
+  output, then independently re-derived by a second pass trying to prove the
+  first wrong. This is what found the senior-deduction bug. Read the header
+  comment before adding to it — in particular, dollar thresholds come from the
+  2026 tables while worksheet STRUCTURE comes from the IRS document, and each
+  fixture records which of its inputs are statutory (survive a table refresh)
+  and which are indexed (need re-deriving).
+- `node scripts/test-renderers.js` — 48 assertions that the four renderers
+  agree with each other and with the engine on the headline figures, that
+  per-strategy incrementals use the scenario's own (possibly overridden)
+  profile, that no renderer emits `$NaN`, and that the ET7 exact-vs-rounded
+  split holds. Runs headless by stubbing `openWindow`/`openDeck`.
 - `node scripts/ui-smoke.js` — 41-check browser sweep of the UI surface:
   every Section 1 field and checkbox, both tab panes, library search and
   the card detail modal, Suggest, strategy selection with its parameter
