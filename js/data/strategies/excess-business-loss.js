@@ -27,9 +27,11 @@ TSIQ.strategyModules.push({
       'big loss business is the classic trapped-loss fact pattern. Planning ' +
       'levers: manage the wage/business income mix, aggregate business income ' +
       'and gains correctly, and time discretionary deductions and income so ' +
-      'losses land where they are usable. The engine does not enforce §461(l) ' +
-      '(a documented v1 simplification) — this entry exists so large modeled ' +
-      'losses are sanity-checked against the cap.',
+      'losses land where they are usable. The engine DOES enforce §461(l): a ' +
+      'disallowed excess is added back to the year it arose and banked as an ' +
+      'NOL for future years only, used at up to 80% of taxable income under ' +
+      '§172(a)(2). This entry exists to surface the planning levers, not to ' +
+      'compensate for a missing cap.',
     mechanics: [
       'Compute aggregate business deductions minus aggregate business income ' +
       'and gains across ALL trades or businesses; the excess over the threshold ' +
@@ -124,8 +126,9 @@ TSIQ.strategyModules.push({
   apply: function (profile, params, yearIndex, state) {
     return { profile: profile, notes: yearIndex === 0
       ? ['Advisory strategy — appears in the plan documents but does not change the scenario math. ' +
-         'NOTE: the engine does not enforce the §461(l) cap ($256k/$512k for 2026) — ' +
-         'manually cap any modeled business loss that exceeds it.']
+         'The engine enforces the §461(l) cap ($256k/$512k for 2026) directly: the excess is ' +
+         'disallowed in the year it arises and carried forward as an NOL, and the results panel ' +
+         'raises a quantified note when it bites. Nothing needs capping by hand.']
       : [] };
   }
 });

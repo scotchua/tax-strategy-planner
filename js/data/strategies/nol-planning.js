@@ -132,8 +132,11 @@ TSIQ.strategyModules.push({
     if (yearIndex === 0 && nol > 0) {
       p.adjustments = (p.adjustments || 0) + nol;
       notes.push('Year 1: ' + TSIQ.fmt.usd(nol) + ' NOL carryforward deducted. ' +
-        'IMPORTANT: the engine does not enforce the §172(a)(2) 80%-of-taxable-income cap — ' +
-        'cap this input at 80% of projected taxable income before the NOL.');
+        'IMPORTANT: this input bypasses the engine\'s own NOL machinery. The engine applies the ' +
+        '§172(a)(2) 80%-of-taxable-income cap to NOLs it banked itself from a §461(l) disallowance, ' +
+        'but this strategy adds the carryforward straight to adjustments, so that cap does NOT ' +
+        'apply to what you enter here — cap this input at 80% of projected taxable income before ' +
+        'the NOL yourself.');
       notes.push('The NOL deduction does not reduce the §199A QBI base (modeled correctly here); ' +
         'any separate §199A qualified business loss carryover must be handled in the QBI inputs.');
     }

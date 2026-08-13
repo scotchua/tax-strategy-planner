@@ -379,10 +379,17 @@ window.TSIQ = window.TSIQ || {};
     // sd.sunsetTaxYear (2028) per enacted law — see PJ1 / tables comment. ----
     var sd = tb.seniorDeduction;
     var seniorApplies = !sd.sunsetTaxYear || projYear <= sd.sunsetTaxYear;
-    var seniorGross = seniorApplies ? (p.age65Count || 0) * sd.amount : 0;
-    var seniorReduction = seniorApplies
-      ? sd.phaseOutRate * Math.max(0, agi - sd.magiPhaseOutStart[fs]) : 0;
-    var seniorDeductionAllowed = Math.max(0, seniorGross - seniorReduction);
+    // The statute reduces "the $6,000 amount" — i.e. EACH qualifying
+    // individual's own $6,000 — by 6% of the MAGI excess, floored at zero per
+    // person. It does not reduce the couple's aggregate once. The difference
+    // only shows up on a joint return where BOTH spouses are 65+: applied per
+    // person the $12,000 is gone at $250,000 of MAGI ($150,000 + $6,000/6%),
+    // which is the full-phase-out figure the published guidance states;
+    // applied once to the aggregate it would survive to $350,000 and hand a
+    // two-senior couple up to $6,000 of deduction they are not entitled to.
+    var perPersonReduction = sd.phaseOutRate * Math.max(0, agi - sd.magiPhaseOutStart[fs]);
+    var perPersonAllowed = Math.max(0, sd.amount - perPersonReduction);
+    var seniorDeductionAllowed = seniorApplies ? (p.age65Count || 0) * perPersonAllowed : 0;
 
     var deduction = deductionBase + nonItemizerCharitableAllowed + seniorDeductionAllowed;
     var tiBeforeQBI = Math.max(0, agi - deduction);

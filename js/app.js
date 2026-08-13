@@ -2099,4 +2099,15 @@
       TSIQ.render.pitchDeck(lastRun);
     });
   });
+
+  // Testability hook. There is no headless harness for the UI (see CLAUDE.md
+  // "Testing"), so a browser driver otherwise has no way to reach the form
+  // reader or the last computed run and must re-derive both from the rendered
+  // DOM — which can only ever confirm that the DOM agrees with itself. These
+  // are read-only and nothing in the app consumes them; they exist so a
+  // scripted check can tie a KPI tile back to TSIQ.computeScenario.
+  TSIQ.__test = {
+    readProfile: function () { return readProfile(); },
+    lastRun: function () { return lastRun; }
+  };
 })();

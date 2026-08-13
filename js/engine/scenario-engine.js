@@ -76,17 +76,39 @@ window.TSIQ = window.TSIQ || {};
     return surcharge;
   }
 
+  // Fill any param the caller omitted from the strategy's OWN declared
+  // `inputs[].default`. In the app every selection's params come from the DOM,
+  // where each input is initialised to that same default, so this is a no-op
+  // for the UI. It matters for programmatic callers (tests, the Solve sweep, a
+  // future integration): most apply() functions open with a guard like
+  // `if (!(params.salary > 0)) return <unchanged>`, so ONE missing key turned
+  // the whole strategy into a silent no-op — computeScenario returned the
+  // baseline and reported no error. 54 of the 62 modeled strategies behaved
+  // that way when handed `params: {}`. validate-strategies.js requires every
+  // input to declare a default, so this always has something to fall back on.
+  function withDeclaredDefaults(strategy, params) {
+    var out = Object.assign({}, params || {});
+    (strategy.inputs || []).forEach(function (inp) {
+      if (out[inp.key] === undefined && inp.default !== undefined) out[inp.key] = inp.default;
+    });
+    return out;
+  }
+  // Exposed because the client report's Data & Assumptions page exists to
+  // reproduce every number from its own inputs — it has to list the params the
+  // engine ACTUALLY used, defaults included, not just the keys the caller
+  // happened to pass.
+  TSIQ.resolveStrategyParams = withDeclaredDefaults;
+
   // Opt-in nominal-dollar scaling for currency params flagged `grows: true`
   // (e.g. a spouse/owner salary) — without this, a strategy's dollar inputs
   // stay flat at their year-1 value for the whole projection while the
   // client's income compounds, understating the strategy's benefit in later
-  // years. Params with no `grows` inputs are returned unchanged (year 0 is
-  // always unchanged either way, since the factor is 1).
-  function growParams(sel, yearIndex, growthRate) {
+  // years. Year 0 is never scaled (the factor is 1).
+  function resolveParams(sel, yearIndex, growthRate) {
+    var params = withDeclaredDefaults(sel.strategy, sel.params);
     var growable = (sel.strategy.inputs || []).filter(function (inp) { return inp.grows; });
-    if (!growable.length || yearIndex === 0) return sel.params;
+    if (!growable.length || yearIndex === 0) return params;
     var factor = Math.pow(1 + growthRate, yearIndex);
-    var params = Object.assign({}, sel.params);
     growable.forEach(function (inp) {
       if (typeof params[inp.key] === 'number') params[inp.key] = params[inp.key] * factor;
     });
@@ -112,8 +134,24 @@ window.TSIQ = window.TSIQ || {};
       profile.ownerWages = profile.ownerWages || 0;
       profile.entityW2Wages = profile.entityW2Wages || 0;
 
+      // §415(c) is an ANNUAL additions limit, so its tracker has to reset at
+      // each year boundary. `state` lives for the whole scenario (that is the
+      // point of it — suspended losses, NOLs and the depreciation-recapture
+      // total are all deliberately cumulative), and dcAnnualAdditionsUsed was
+      // riding along in that cumulative pool. The effect on a projection was
+      // severe and one-directional: a solo 401(k) at its default params
+      // deducted $44,500 in year 1, was clamped to $27,500 of "remaining
+      // headroom" in year 2, and $0 in every year after that, because the
+      // running total had reached $72,000 and never came back down. That
+      // understated the multi-year value of every retirement strategy in the
+      // library, which is the most commonly recommended family in it.
+      // Only THIS key resets. Every other state key here is cumulative by
+      // design; do not add to this list without checking that the underlying
+      // limit is genuinely annual.
+      state.dcAnnualAdditionsUsed = 0;
+
       ordered.forEach(function (sel) {
-        var out = sel.strategy.apply(profile, growParams(sel, y, growthRate), y, state);
+        var out = sel.strategy.apply(profile, resolveParams(sel, y, growthRate), y, state);
         profile = out.profile;
         (out.notes || []).forEach(function (n) {
           var tagged = '[' + sel.strategy.name + '] ' + n;

@@ -161,36 +161,50 @@ TSIQ.render = TSIQ.render || {};
   // strategy in the plan (workpaper defensibility; nothing here is derived).
   function assumptionsPage(data, best) {
     var p = data.profile;
+    // This page goes to the client. A profile field that is absent (an older
+    // client file, a programmatically built profile) must print as $0, the way
+    // the engine itself treats it via computeYear()'s defaults — never as
+    // "$NaN" or "undefined" in a document with the firm's name on it.
+    var n = function (v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; };
+    var usdSafe = function (v) { return usd(n(v)); };
+    var pctSafe = function (v) { return TSIQ.fmt.pct(n(v)); };
     var profileRows = [
-      ['Filing status', TSIQ.FILING_STATUS_LABELS[p.filingStatus] || p.filingStatus],
-      ['W-2 wages', usd(p.wages)],
-      ['Schedule C net profit', usd(p.scheduleCNet)],
-      ['K-1 ordinary income (pass-through)', usd(p.passthroughK1)],
+      ['Filing status', TSIQ.FILING_STATUS_LABELS[p.filingStatus] || p.filingStatus || '—'],
+      ['W-2 wages', usdSafe(p.wages)],
+      ['Schedule C net profit', usdSafe(p.scheduleCNet)],
+      ['K-1 ordinary income (pass-through)', usdSafe(p.passthroughK1)],
       ['Specified service trade or business (SSTB)', p.isSSTB ? 'Yes' : 'No'],
-      ['Rental net income / (loss)', usd(p.rentalNet)],
+      ['Rental net income / (loss)', usdSafe(p.rentalNet)],
       ['Real estate professional / non-passive', p.reNonPassive ? 'Yes' : 'No'],
-      ['Long-term capital gains', usd(p.ltcg)],
-      ['Qualified dividends', usd(p.qualDiv)],
-      ['Interest income', usd(p.interest)],
-      ['Other income', usd(p.otherIncome)],
-      ['Property tax', usd(p.propertyTax)],
-      ['Mortgage interest', usd(p.mortgageInterest)],
-      ['Charitable contributions', usd(p.charitable)],
-      ['Other itemized deductions', usd(p.otherItemized)],
-      ['Qualifying children (Child Tax Credit)', p.kidsCTC],
-      ['Other dependents', p.otherDeps],
-      ['Filer/spouse age 65+ (count)', p.age65Count],
-      ['State effective tax rate', TSIQ.fmt.pct(p.stateRate)],
-      ['Assumed annual income growth', TSIQ.fmt.pct(data.growthRate)],
-      ['Projection horizon', data.years + ' years']
+      ['Long-term capital gains', usdSafe(p.ltcg)],
+      ['Qualified dividends', usdSafe(p.qualDiv)],
+      ['Interest income', usdSafe(p.interest)],
+      ['Other income', usdSafe(p.otherIncome)],
+      ['Property tax', usdSafe(p.propertyTax)],
+      ['Mortgage interest', usdSafe(p.mortgageInterest)],
+      ['Charitable contributions', usdSafe(p.charitable)],
+      ['Other itemized deductions', usdSafe(p.otherItemized)],
+      ['Qualifying children (Child Tax Credit)', n(p.kidsCTC)],
+      ['Other dependents', n(p.otherDeps)],
+      ['Filer/spouse age 65+ (count)', n(p.age65Count)],
+      ['State effective tax rate', pctSafe(p.stateRate)],
+      ['Assumed annual income growth', pctSafe(data.growthRate)],
+      ['Projection horizon', n(data.years) + ' years']
     ];
     if (p.priorYearTax) profileRows.push(['Prior-year total tax (safe-harbor basis)', usd(p.priorYearTax)]);
     if (p.priorYearAGI) profileRows.push(['Prior-year AGI (safe-harbor basis)', usd(p.priorYearAGI)]);
 
     var stratRows = best.selections.map(function (sel) {
+      // Resolve through the same defaulting the scenario engine applied, so a
+      // param the caller omitted (and the engine therefore supplied from the
+      // strategy's declared default) still appears here. Omitting it would
+      // leave an input that DID move the numbers off the workpaper page.
+      var used = TSIQ.resolveStrategyParams
+        ? TSIQ.resolveStrategyParams(sel.strategy, sel.params)
+        : (sel.params || {});
       var paramStrs = (sel.strategy.inputs || []).map(function (inp) {
-        if (sel.params[inp.key] === undefined) return null;
-        return esc(inp.label) + ': ' + esc(String(formatParamValue(inp, sel.params[inp.key])));
+        if (used[inp.key] === undefined) return null;
+        return esc(inp.label) + ': ' + esc(String(formatParamValue(inp, used[inp.key])));
       }).filter(function (s) { return s !== null; });
       return '<tr><td>' + esc(sel.strategy.name) + '</td><td>' + (paramStrs.join('; ') || '&mdash;') + '</td></tr>';
     }).join('');
