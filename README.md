@@ -72,11 +72,11 @@ load it with **Import Client File**.
 
 ## The strategy library
 
-100 strategies across 10 categories (Entity Structure, QBI Optimization,
+109 strategies across 10 categories (Entity Structure, QBI Optimization,
 Payroll & Family, Retirement, Health & Fringe, Real Estate & Cost Recovery,
 Business Expenses, Income Timing & Character, Credits & Incentives,
-Succession & Exit). 56 are **modeled** (they change the scenario math);
-44 are **advisory** (structural/planning items shown in the library and plan
+Succession & Exit). 62 are **modeled** (they change the scenario math);
+47 are **advisory** (structural/planning items shown in the library and plan
 documents without pretending to have computable savings). Use the search box
 in Section 2 to find anything fast.
 
@@ -87,6 +87,8 @@ in Section 2 to find anything fast.
 2. Fill in the advisor content, client content, inputs, and the `apply()` math.
 3. Run `node scripts/build-index.js` (registers it in index.html), then
    `node scripts/validate-strategies.js` (schema + math smoke tests).
+4. Optionally `node scripts/ui-smoke.js` to drive the app in a real browser
+   (needs `npm i -D playwright && npx playwright install chromium`).
 
 The library cards, scenario checkboxes, PDF, slideshow, and pitch deck all
 pick it up automatically.
