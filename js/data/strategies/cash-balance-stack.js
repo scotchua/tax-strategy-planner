@@ -14,7 +14,13 @@ TSIQ.strategyModules.push({
   character: 'deferral', // ET2
 
   // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
-  conflictsWith: ['simple-ira'],
+  // A cash balance plan IS a defined benefit plan (§414(j)), and this strategy's
+  // combinedContribution input is the all-three-layers owner figure (401(k)
+  // deferral + 6% profit sharing + cash balance credit), so every standalone
+  // plan below is ALREADY inside it. apply()'s own note has always said so;
+  // this makes the engine enforce it instead of just warning.
+  conflictsWith: ['simple-ira', 'defined-benefit-plan', 'solo-401k', 'sep-ira',
+    'profit-sharing-new-comparability'],
 
   advisor: {
     summary:

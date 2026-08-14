@@ -16,7 +16,8 @@ TSIQ.strategyModules.push({
   // Same base compensation as a SEP for the same self-employment income
   // (§415(c) coordination already caps both via state.dcAnnualAdditionsUsed);
   // Notice 98-4 bars pairing with a SIMPLE for the same year.
-  conflictsWith: ['sep-ira', 'simple-ira'],
+  // cash-balance-stack's combined figure already contains this layer.
+  conflictsWith: ['sep-ira', 'simple-ira', 'cash-balance-stack'],
 
   advisor: {
     summary:

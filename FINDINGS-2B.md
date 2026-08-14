@@ -8,10 +8,12 @@ itemized deductions, one year, zero growth). On that bed progressivity is the
 only remaining nonlinearity, and progressivity pushes toward sub-additivity, so
 a super-additive result there is a real defect rather than an artifact.
 
-**Fixed already** are listed first. **Awaiting a call** are the ones where the
-math cannot be changed without deciding what the strategy is supposed to mean,
-so they sit in the `KNOWN_DEFECTS` registry in `scripts/test-invariants.js` and
-print on every run.
+**Fixed** is everything resolved so far. The three plan-coordination items that
+needed a decision about intended behaviour were decided in August 2026 and are
+now implemented; they are kept below with the before-and-after figures, because
+the reasoning is the working paper. One item remains in the `KNOWN_DEFECTS`
+registry in `scripts/test-invariants.js` (the dead statutory constants) and
+prints on every run.
 
 Nothing here is a tax position for a client. It is all internal: what the tool
 computes versus what it should compute.
@@ -61,71 +63,70 @@ $250,000. Found by the §86 worksheet derivation pass.
 
 ---
 
-## Awaiting a call
+## Resolved — decided by Scott Edwards, August 2026
 
-### 1. `simple-ira` suppresses whichever richer plan it is paired with
+All three were mutually exclusive plan pairings whose exclusivity was enforced
+inside each `apply()` via a state flag. That resolved on `applyOrder`: whichever
+strategy ran FIRST claimed the slot and the other silently modeled nothing. The
+fix is one mechanism in `js/engine/scenario-engine.js` — `resolveExclusive()`
+measures each conflicting strategy in isolation BEFORE anything is applied, drops
+the smaller, and emits a note naming what displaced it and by how much.
 
-The Notice 98-4 exclusive-plan guard arbitrates on **apply order**, not on
-amount. `simple-ira` (applyOrder 63) runs first, sets `state.hasSimplePlan`,
-and every richer plan then declines to model itself.
+### 1. Prefer the better benefit — DECIDED: yes
 
-| Paired with | That plan alone | simple-ira alone | Both selected |
-|---|---|---|---|
-| `cash-balance-stack` | $66,000 | $7,260 | **$7,260** |
-| `defined-benefit-plan` | $49,500 | $7,260 | **$7,260** |
-| `profit-sharing-new-comparability` | $16,085 | $7,260 | **$7,260** |
+`simple-ira` sits at `applyOrder` 63 and suppressed every richer plan it was
+paired with. Measured on the linearized bed:
 
-Adding a second strategy made the plan worse by up to $58,740 than the better
-one alone. This understates, so it costs the client an opportunity rather than
-exposing them, but it is the same broken coordination.
+| Selection | Before | After |
+|---|---|---|
+| `simple-ira` + `cash-balance-stack` | $7,260 | **$66,000** |
+| `simple-ira` + `defined-benefit-plan` | $7,260 | **$49,500** |
+| `simple-ira` + `solo-401k` | $7,260 | **$14,685** |
 
-**The question:** should the guard pick the larger benefit rather than the one
-that happens to run first? The exclusivity itself is correct (you cannot
-maintain a SIMPLE and another qualified plan in the same year), so this is
-about which one survives. My read is that it should arbitrate on amount, but
-that changes recommended plan design, so it is your call.
+Adding a second strategy can no longer make the plan worse than the better one
+alone.
 
-### 2. `cash-balance-stack` and `defined-benefit-plan` stack two DB contributions
+### 2. Do not stack DB plans — DECIDED: correct, they never stack
 
-A cash balance plan **is** a defined benefit plan (§414(j)). Neither strategy
-coordinates a dollar amount with the other and neither declares
-`conflictsWith`.
+A cash balance plan IS a defined benefit plan (§414(j)).
+`cash-balance-stack` + `defined-benefit-plan` went from **$111,782** to
+**$66,000**, the larger of the two, and the reciprocal `conflictsWith`
+declarations now say so explicitly.
 
-| | Savings |
-|---|---|
-| `cash-balance-stack` alone | $66,000 |
-| `defined-benefit-plan` alone | $49,500 |
-| Both selected | **$111,782** |
+### 3. Does `combinedContribution` include the DC layer — ANSWERED BY THE CODE
 
-Overstates by roughly $46,000 of deduction. A correct answer is no greater than
-the larger of the two.
+This one did not need a judgment call in the end. The strategy answers it about
+itself, in three places:
 
-**The question:** are these meant to be alternative presentations of the same
-plan (in which case they are mutually exclusive and the larger should win), or
-does the firm ever model a genuine second DB arrangement? Also unmodeled either
-way: the §404(a)(7) combined-plan deduction limit, which caps the employer
-deduction when a DB and a DC plan cover the same employees.
+- the advisor summary: "three layers in one design. Layer 1 — 401(k) elective
+  deferral. Layer 2 — employer profit sharing, held to 6%. Layer 3 — a cash
+  balance pay credit"
+- the input label: "Combined contribution (all three layers, owner)"
+- and `apply()` has always emitted this note: *"Do not also select the standalone
+  Defined Benefit, Solo 401(k), SEP-IRA, or Profit-Sharing strategies in this
+  scenario — this combined figure already includes those layers, and selecting
+  them too would double-count the same dollars."*
 
-### 3. `cash-balance-stack` does not participate in the §415(c) limit
+So the input is the all-three-layers figure and the standalone DC plans are
+already inside it. The strategy was warning the advisor and not enforcing it.
+The engine now enforces exactly what the note says:
 
-It neither reads nor writes `state.dcAnnualAdditionsUsed`, even though its own
-input label describes the contribution as "combined 401(k) + 6% profit sharing"
-and therefore already contains the DC layer.
+| Selection | Before | After |
+|---|---|---|
+| `solo-401k` + `cash-balance-stack` | $79,827 | **$66,000** |
+| `profit-sharing-new-comparability` + `cash-balance-stack` | $81,146 | **$66,000** |
 
-| | Savings |
-|---|---|
-| `solo-401k` alone | $14,685 |
-| `cash-balance-stack` alone | $66,000 |
-| Both | **$79,827** |
-| `profit-sharing-new-comparability` alone | $16,085 |
-| Both | **$81,146** |
+### What deliberately still stacks
 
-Both overstate.
+A standalone DC plan alongside a standalone DB plan is a real design, coordinated
+by §404(a)(7) rather than barred, so neither declares the other and both apply:
+`solo-401k` + `defined-benefit-plan` saves **$64,185**, more than either alone.
+Fixture 36 asserts this alongside the three exclusivity outcomes, so a future
+change that over-broadens the exclusivity fails the suite.
 
-**The question:** does `combinedContribution` include the DC layer, as the label
-says? If so, the strategy should register its DC portion in the shared tracker,
-and the fix is a few lines. If the input is meant to be the DB layer only, the
-label should change instead.
+§404(a)(7) itself is still not modeled. It caps the combined employer deduction
+when a DB and a DC plan cover the same employees, and it is the remaining known
+gap in this family.
 
 ---
 

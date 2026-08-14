@@ -920,6 +920,95 @@ function check(name, actual, expected, tol) {
     st.dcAnnualAdditionsUsed, TSIQ.TABLES_2026.limits.retirement.dcAnnualAdditions, 0.01);
 })();
 
+/* -------------------------------------------------------------------------
+ * Fixture 36 — mutually exclusive plans are arbitrated on AMOUNT, keeping the
+ * better one. The exclusivity used to be enforced inside each apply() via a
+ * state flag, which resolved on applyOrder: whichever ran FIRST claimed the
+ * slot. simple-ira sits at applyOrder 63, so it suppressed every richer plan it
+ * was paired with and adding a second strategy made the plan WORSE than the
+ * better one alone. Now scenario-engine.js measures each conflicting strategy
+ * in isolation before applying anything, drops the smaller, and says so in a
+ * note.
+ *
+ * Decisions this encodes (Scott Edwards, Aug 2026):
+ *  - prefer the better benefit when two plans are mutually exclusive
+ *  - a cash balance plan IS a defined benefit plan, so the two never stack
+ *  - cash-balance-stack's combinedContribution is the all-three-layers figure,
+ *    so the standalone DC plans are already inside it (its own apply() note has
+ *    always said so; the engine now enforces it)
+ * ---------------------------------------------------------------------- */
+(function () {
+  // This suite only requires a handful of strategy files, so pull in the rest of
+  // the retirement family here and resolve from the live module array (as
+  // fixture 29 does) rather than through getStrategy, which reads the snapshot
+  // strategies-index.js already finalized.
+  ['solo-401k', 'sep-ira', 'simple-ira', 'cash-balance-stack', 'defined-benefit-plan',
+    'profit-sharing-new-comparability'].forEach(function (id) {
+    require(path.join(root, 'js/data/strategies/' + id + '.js'));
+  });
+  function sel(id) {
+    var st = TSIQ.strategyModules.filter(function (m) { return m.id === id; })[0];
+    if (!st) throw new Error('strategy not loaded: ' + id);
+    var p = {};
+    (st.inputs || []).forEach(function (i) { if (i.default !== undefined) p[i.key] = i.default; });
+    return { strategy: st, params: p };
+  }
+  var bed = { filingStatus: 'mfj', scheduleCNet: 900000, entityW2Wages: 3000000,
+    interest: 5000, stateRate: 0.05 };
+  var base = TSIQ.computeScenario(bed, [], 1, 0).totals.totalBurden;
+  function savings(ids) {
+    return base - TSIQ.computeScenario(bed, ids.map(sel), 1, 0).totals.totalBurden;
+  }
+  function notesFor(ids) {
+    return TSIQ.computeScenario(bed, ids.map(sel), 1, 0).notes
+      .filter(function (n) { return n.indexOf('was not modeled') > -1; });
+  }
+
+  var simple = savings(['simple-ira']);
+  var cash = savings(['cash-balance-stack']);
+  var db = savings(['defined-benefit-plan']);
+  var solo = savings(['solo-401k']);
+
+  // Sanity: the individual figures have to differ, or the arbitration is untested.
+  check('F36 the four plans have genuinely different standalone values',
+    (simple < db && db < cash && solo < db) ? 1 : 0, 1, 0);
+
+  // Decision 1 — the better plan wins, not the one that runs first.
+  check('F36 SIMPLE + cash balance keeps the cash balance value', savings(['simple-ira', 'cash-balance-stack']), cash, 1);
+  check('F36 SIMPLE + defined benefit keeps the DB value', savings(['simple-ira', 'defined-benefit-plan']), db, 1);
+  check('F36 SIMPLE + solo 401(k) keeps the solo value', savings(['simple-ira', 'solo-401k']), solo, 1);
+  check('F36 adding a plan is never worse than the better one alone',
+    savings(['simple-ira', 'cash-balance-stack']) >= cash - 1 ? 1 : 0, 1, 0);
+
+  // Decision 2 — two DB plans never stack.
+  check('F36 cash balance + defined benefit does not stack two DB contributions',
+    savings(['cash-balance-stack', 'defined-benefit-plan']), cash, 1);
+  check('F36 and it is strictly below the sum of the two',
+    savings(['cash-balance-stack', 'defined-benefit-plan']) < cash + db - 1 ? 1 : 0, 1, 0);
+
+  // Decision 3 — the combined figure already contains the DC layer.
+  check('F36 solo 401(k) + cash balance does not double-count the DC layer',
+    savings(['solo-401k', 'cash-balance-stack']), cash, 1);
+  check('F36 profit sharing + cash balance does not double-count the DC layer',
+    savings(['profit-sharing-new-comparability', 'cash-balance-stack']), cash, 1);
+
+  // The legitimate combination must STILL stack: a standalone DC plan alongside
+  // a standalone DB plan is a real design (coordinated by §404(a)(7), not
+  // barred), so neither declares the other and both must apply.
+  check('F36 solo 401(k) + defined benefit still stack (DC alongside DB is legitimate)',
+    savings(['solo-401k', 'defined-benefit-plan']), solo + db, 1);
+  check('F36 that combination beats either alone',
+    savings(['solo-401k', 'defined-benefit-plan']) > Math.max(solo, db) + 1 ? 1 : 0, 1, 0);
+
+  // The advisor must be told WHY a checked box did nothing.
+  check('F36 a dropped strategy produces exactly one explanatory note',
+    notesFor(['simple-ira', 'cash-balance-stack']).length, 1, 0);
+  check('F36 the note names the strategy that displaced it',
+    notesFor(['simple-ira', 'cash-balance-stack'])[0].indexOf('Cash Balance') > -1 ? 1 : 0, 1, 0);
+  check('F36 no note when nothing was dropped',
+    notesFor(['solo-401k', 'defined-benefit-plan']).length, 0, 0);
+})();
+
 console.log('Golden-file engine tests: ' + passCount + ' passed, ' + failures.length + ' failed.');
 if (failures.length) {
   console.log('\nFAILURES:');

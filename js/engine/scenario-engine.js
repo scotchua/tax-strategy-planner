@@ -115,17 +115,105 @@ window.TSIQ = window.TSIQ || {};
     return params;
   }
 
+  // How much is ONE strategy worth on its own, in year-1 dollars? Applied in
+  // isolation against a fresh state so nothing else can mask or inflate it.
+  // Used only to arbitrate between mutually exclusive strategies.
+  function isolatedBenefit(baseProfile, sel) {
+    var bare = TSIQ.computeYear(baseProfile, {});
+    var isolated = {};
+    var out;
+    try {
+      out = sel.strategy.apply(Object.assign({}, baseProfile),
+        withDeclaredDefaults(sel.strategy, sel.params), 0, isolated);
+    } catch (e) {
+      return 0; // a strategy that throws in isolation cannot win an arbitration
+    }
+    return bare.totalBurden - TSIQ.computeYear(out.profile, isolated).totalBurden;
+  }
+
+  /**
+   * Resolve mutually exclusive selections by KEEPING THE BETTER ONE.
+   *
+   * `conflictsWith` declares a genuine legal exclusivity (Notice 98-4 bars a
+   * SIMPLE alongside any other qualified plan; a cash balance plan IS a defined
+   * benefit plan under §414(j); the cash-balance stack's own input is the
+   * combined all-three-layers figure, so the standalone DC plans are already
+   * inside it). The exclusivity was previously enforced inside each apply() via
+   * a state flag, which meant it resolved on applyOrder: whichever strategy ran
+   * FIRST claimed the slot and the other silently modeled nothing. That picked
+   * the wrong winner. simple-ira runs at applyOrder 63, so on a $900,000
+   * Schedule C it suppressed cash-balance-stack ($66,000 of savings alone),
+   * defined-benefit-plan ($49,500) and profit-sharing-new-comparability
+   * ($16,085) alike, leaving the $7,260 SIMPLE. Adding a second strategy made
+   * the plan WORSE than the better one by itself.
+   *
+   * Now the scenario arbitrates before anything is applied: each conflicting
+   * strategy is measured alone, the smaller one is dropped, and a note names
+   * what displaced it and by how much. The advisor sees the reasoning rather
+   * than a silently inert checkbox.
+   *
+   * Deliberately NOT exclusive: a DC plan alongside a DB plan (solo 401(k) or
+   * profit sharing with defined-benefit-plan) is a real design, coordinated by
+   * §404(a)(7) rather than barred, so neither declares the other.
+   */
+  function resolveExclusive(baseProfile, selections) {
+    var notes = [];
+    var kept = selections.slice();
+
+    function conflictsBetween(list) {
+      for (var i = 0; i < list.length; i++) {
+        for (var j = i + 1; j < list.length; j++) {
+          var a = list[i].strategy, b = list[j].strategy;
+          var aSaysB = (a.conflictsWith || []).indexOf(b.id) > -1;
+          var bSaysA = (b.conflictsWith || []).indexOf(a.id) > -1;
+          if (aSaysB || bSaysA) return [i, j];
+        }
+      }
+      return null;
+    }
+
+    var benefit = {};
+    function benefitOf(sel) {
+      if (benefit[sel.strategy.id] === undefined) {
+        benefit[sel.strategy.id] = isolatedBenefit(baseProfile, sel);
+      }
+      return benefit[sel.strategy.id];
+    }
+
+    // One conflict resolved per pass, re-checking each time, so a three-way
+    // conflict converges instead of dropping two at once.
+    var guard = 0;
+    var pair = conflictsBetween(kept);
+    while (pair && guard++ < 64) {
+      var A = kept[pair[0]], B = kept[pair[1]];
+      var aVal = benefitOf(A), bVal = benefitOf(B);
+      // Ties go to the lower applyOrder, purely so the outcome is deterministic.
+      var loser = (bVal > aVal) ? A : (aVal > bVal ? B
+        : (A.strategy.applyOrder <= B.strategy.applyOrder ? B : A));
+      var winner = (loser === A) ? B : A;
+      notes.push(loser.strategy.name + ' was not modeled: it cannot be combined with ' +
+        winner.strategy.name + ' in the same year, and ' + winner.strategy.name +
+        ' is worth more here (' + TSIQ.fmt.usd(benefitOf(winner)) + ' vs ' +
+        TSIQ.fmt.usd(benefitOf(loser)) + ' of first-year savings on its own). ' +
+        'Deselect one to model the other deliberately.');
+      kept = kept.filter(function (s) { return s !== loser; });
+      pair = conflictsBetween(kept);
+    }
+    return { selections: kept, notes: notes };
+  }
+
   /**
    * Run one scenario across `years` years.
    * selections: [{ strategy, params }] — strategy is the library object.
    * Returns { years: [yearResult...], totals: {...}, notes: [...] }.
    */
   TSIQ.computeScenario = function (baseProfile, selections, years, growthRate) {
-    var ordered = selections.slice().sort(function (a, b) {
+    var resolved = resolveExclusive(baseProfile, selections);
+    var ordered = resolved.selections.slice().sort(function (a, b) {
       return a.strategy.applyOrder - b.strategy.applyOrder;
     });
     var state = {};           // multi-year memory shared by engine + strategies
-    var allNotes = [];
+    var allNotes = resolved.notes.slice(); // why any exclusive strategy was dropped
     var yearResults = [];
 
     for (var y = 0; y < years; y++) {
