@@ -27,6 +27,14 @@ anonymized pre-engagement pitch deck.
   highly confident is correct — an omitted authority is fine, a fabricated
   one is not. When in doubt, verify (web search, IRS Rev. Proc.) rather
   than guess, especially for anything version-pinned to a specific tax year.
+- **`conflictsWith` is enforced, not advisory.** Declaring it means the two
+  strategies are legally exclusive and `computeScenario` will DROP the smaller
+  one. Only use it for genuine exclusivity (Notice 98-4's SIMPLE rule; a cash
+  balance plan being a defined benefit plan under §414(j); a combined-figure
+  input that already contains a standalone strategy). A pairing that is merely
+  coordinated rather than barred — a DC plan alongside a DB plan, capped by
+  §404(a)(7) — must NOT declare it, or the engine will suppress a legitimate
+  design. The validator checks reciprocity; fixture 36 asserts both directions.
 - **One strategy per file, do not hand-edit the generated index.** See
   "Adding a strategy" below — `js/data/strategies-index.js` is generated,
   never edit it directly.
@@ -56,7 +64,15 @@ js/engine/scenario-engine.js      TSIQ.computeScenario(profile, selections,
                                    years, growthRate) — runs a multi-year
                                    projection, applying each selected
                                    strategy's apply() in applyOrder, then
-                                   computeYear() per year. Also
+                                   computeYear() per year. Before applying
+                                   anything it resolves mutually exclusive
+                                   selections (resolveExclusive): any two
+                                   selected strategies that declare each other
+                                   in conflictsWith are measured in isolation
+                                   and the SMALLER is dropped with an
+                                   explanatory note, so a legally exclusive
+                                   pairing keeps the better plan instead of
+                                   whichever ran first. Also
                                    TSIQ.bestScenario / TSIQ.incrementalSavings
                                    (shared by every renderer — don't
                                    reimplement "which scenario is best"

@@ -72,36 +72,6 @@ var KNOWN_DEFECTS = [
       'so it is a judgment call rather than a one-line clamp. Fifteen further uncapped params are ' +
       'catalogued in FINDINGS-2B.md; they need new table constants that do not exist yet ' +
       '(§45F, QSEHRA, §179D per-square-foot rates, the §170(b)(1) AGI ceilings).'
-  },
-  {
-    match: 'I2 simple-ira + ',
-    why: 'The Notice 98-4 exclusive-plan guard is applyOrder-based, so it suppresses whichever ' +
-      'plan happens to run second rather than the smaller one. simple-ira (applyOrder 63) is ' +
-      'applied first and sets state.hasSimplePlan, which then blocks cash-balance-stack (64). ' +
-      'Measured on the linearized bed, simple-ira alone saves $7,260 and it suppresses every ' +
-      'richer plan it is paired with: cash-balance-stack ($66,000 alone), defined-benefit-plan ' +
-      '($49,500 alone) and profit-sharing-new-comparability ($16,085 alone) all collapse to ' +
-      '$7,260 when simple-ira is also selected. Selecting a second strategy made the plan WORSE ' +
-      'than the better one alone, by up to $58,740. Understates, so it costs the client an ' +
-      'opportunity rather than exposing them, but it is the same broken coordination. The fix ' +
-      'is to arbitrate on AMOUNT rather than on apply order.'
-  },
-  {
-    match: 'I3 cash-balance-stack + defined-benefit-plan',
-    why: 'A cash balance plan IS a defined benefit plan (§414(j)), so these two model the same ' +
-      'actuarial contribution twice. Neither coordinates a dollar amount with the other and ' +
-      'neither declares conflictsWith. Measured: $66,000 and $49,500 individually, $111,782 ' +
-      'combined, against a correct answer no greater than the larger of the two. OVERSTATES ' +
-      'savings by roughly $46,000 of deduction.'
-  },
-  {
-    match: ' + cash-balance-stack share the §415(c) DC limit',
-    why: 'cash-balance-stack neither reads nor writes state.dcAnnualAdditionsUsed, so the ' +
-      '§415(c) $72,000 defined-contribution limit is not shared with it, even though its own ' +
-      'input label describes the contribution as "combined 401(k) + 6% profit sharing" and ' +
-      'therefore already includes the DC layer. Measured: $14,685 and $66,000 individually, ' +
-      '$79,827 combined. profit-sharing-new-comparability + cash-balance-stack is the same ' +
-      'defect: $16,085 and $66,000 alone, $81,146 combined. Both OVERSTATE.'
   }
 ];
 

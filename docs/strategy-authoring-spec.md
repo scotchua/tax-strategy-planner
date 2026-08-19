@@ -160,6 +160,32 @@ a hint for the advisor, not a validation rule.
   must list A back; `scripts/validate-strategies.js` fails the build
   otherwise (a one-sided entry is a missed reciprocal add, not a legitimate
   asymmetric relationship).
+
+  **This is ENFORCED, not advisory.** `TSIQ.computeScenario` resolves declared
+  conflicts before applying anything: it measures each conflicting strategy in
+  isolation, DROPS the one worth less, and pushes a note naming what displaced
+  it and by how much. So declaring a conflict changes the numbers, not just the
+  badge text.
+
+  Two consequences for authoring:
+
+  1. Only declare it for genuine LEGAL exclusivity, or where your strategy's
+     input already contains the other strategy's effect. Both of those are real
+     cases in the library: Notice 98-4's SIMPLE rule; a cash balance plan being
+     a defined benefit plan under §414(j); and `cash-balance-stack`, whose
+     `combinedContribution` input is the all-three-layers owner figure and so
+     already contains the standalone 401(k), SEP and profit-sharing layers.
+  2. Do NOT declare it for a pairing that is merely COORDINATED rather than
+     barred. A standalone DC plan alongside a standalone DB plan is a real,
+     common design — §404(a)(7) caps the combined employer deduction, it does
+     not prohibit the combination. Declaring a conflict there would make the
+     engine silently suppress a legitimate plan. Fixture 36 in
+     `scripts/test-engine.js` asserts both directions: the exclusive pairs
+     collapse to the better one, and `solo-401k` + `defined-benefit-plan` still
+     stacks.
+
+  If the relationship is "these are both fine but the combination needs care",
+  say so in the strategy's own notes rather than declaring a conflict.
 - `requiresOneOf: ['other-id', ...]` — for a strategy that's usually only
   meaningful alongside one of the strategies listed (e.g. PTET usually
   wants an S-Corp Election in the same scenario). This is a soft hint only:

@@ -14,7 +14,8 @@ TSIQ.strategyModules.push({
   character: 'deferral', // ET2
 
   // Notice 98-4 bars pairing a qualified plan with a SIMPLE for the same year.
-  conflictsWith: ['simple-ira'],
+  // cash-balance-stack's combined figure already contains this layer.
+  conflictsWith: ['simple-ira', 'cash-balance-stack'],
 
   advisor: {
     summary:
